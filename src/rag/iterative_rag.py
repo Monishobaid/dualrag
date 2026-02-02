@@ -213,12 +213,26 @@ class IterativeRAG:
             followup_query = hop_result.get('followup_query', '')
 
             if not followup_query or followup_query.lower() in ['none', 'n/a', '']:
-                # No follow-up needed
-                retrieval_stopped = True
-                retrieval_stop_reason = "no_followup_needed"
-                logging.info("No follow-up query needed, stopping")
-                print(f"\n✅ No follow-up query needed, stopping retrieval")
-                break
+                # Check if we must continue despite no query
+                if self.config and hop < self.config.min_hops:
+                    logging.info(f"No follow-up query but min_hops ({self.config.min_hops}) not reached. Forcing continuation.")
+                    print(f"\n⚠️  No follow-up query, but min_hops ({self.config.min_hops}) not reached.")
+                    
+                    # Generate fallback query
+                    if hop_result.get('answer'):
+                        followup_query = f"evidence for {hop_result['answer']}"
+                        print(f"➡️  Forcing continuation with verification query: {followup_query}")
+                    else:
+                        followup_query = question
+                        print(f"➡️  Forcing continuation with original question")
+                        
+                else:
+                    # No follow-up needed
+                    retrieval_stopped = True
+                    retrieval_stop_reason = "no_followup_needed"
+                    logging.info("No follow-up query needed, stopping")
+                    print(f"\n✅ No follow-up query needed, stopping retrieval")
+                    break
 
             print(f"\n➡️  Continuing to next hop with query: {followup_query[:100]}")
             current_query = followup_query
