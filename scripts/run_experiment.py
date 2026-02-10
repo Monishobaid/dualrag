@@ -20,6 +20,7 @@ from src.data.hotpot_loader import HotpotQALoader
 from src.retrieval.embedder import Embedder
 from src.retrieval.index import EmbeddingCache
 from src.llm.qwen import QwenModel
+from src.llm.azure_openai import AzureOpenAIModel
 from src.rag.iterative_rag import IterativeRAG
 from src.rag.baselines import get_baseline
 from src.eval.hotpot_eval import evaluate_single
@@ -139,7 +140,11 @@ def main():
     logger.info("Initializing models...")
     embedder = Embedder(model_name=config.embed_model_name, device=config.device)
     cache = EmbeddingCache(cache_dir=config.cache_dir)
-    llm = QwenModel(model_name=config.model_name, device=config.device)
+    
+    if config.model_name in AzureOpenAIModel.CONFIGS or config.model_name.lower().startswith(('gpt', 'azure')):
+        llm = AzureOpenAIModel(model_name=config.model_name, device=config.device)
+    else:
+        llm = QwenModel(model_name=config.model_name, device=config.device)
     
     # Initialize RAG engine
     rag = IterativeRAG(

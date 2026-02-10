@@ -46,13 +46,49 @@ class AnswerConvergenceStopper:
         """
         Extract answer using heuristics (no LLM call).
         
+        Look for:
+        1. JSON "answer" field
+        2. "The answer is" / "Answer:" in text
+        3. <THOUGHT> block text if distinct
+        
         Args:
             text: Generated text
         
         Returns:
             Extracted answer
         """
-        return extract_answer_from_text(text)
+        # 1. Try JSON extraction
+        import json
+        import re
+        
+        # Look for "answer": "..." pattern even if JSON is incomplete
+        json_match = re.search(r'"answer"\s*:\s*"([^"]+)"', text)
+        if json_match:
+            return json_match.group(1).strip()
+            
+        # 2. Look for explicit answer statements in thought
+        patterns = [
+            r"Therefore, the answer is:?\s*([^\n<]+)",
+            r"Therefore, ([^\n<]+)",
+            r"Current Hypothesis:\s*([^\n<]+)",
+            r"The answer is\s+([^\.]+)",
+            r"Answer:\s*([^\n<]+)"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                val = match.group(1).strip()
+                # Clean value
+                val = val.rstrip('."')
+                val = val.strip()
+                
+                if val and len(val) < 200: # Sanity check length
+                     return val
+                     
+        return ""
+                     
+        return ""
     
     def extract_answer_with_llm(self, text: str) -> Optional[str]:
         """
@@ -183,8 +219,13 @@ def generate_with_reasoning_stop(
     )
     
     # Generate with callback
+    
+    # Check if system message should be used
+    from src.llm.prompts import SYSTEM_PROMPT
+    
     result = chunked_generator.generate_with_callback(
         prompt=prompt,
+        system_message=SYSTEM_PROMPT,
         max_chunks=max_chunks,
         temperature=temperature,
         callback=stopper.check_chunk

@@ -50,20 +50,42 @@ Question: {question}
 Evidence (Retrieved Information):
 {evidence_str}
 
-Based on the evidence above, provide your response in the following JSON format:
+Based on the evidence above, first provide your step-by-step reasoning in a <THOUGHT> block.
+Then, provide your structured response in a <JSON> block.
+
+Format:
+<THOUGHT>
+Your detailed step-by-step reasoning here.
+When you form a hypothesis, state: "Current Hypothesis: <your answer>"
+At the end of your thought, state: "Therefore, the answer is: <your answer>"
+
+Example:
+<THOUGHT>
+The user is asking about the capital of France.
+Checking retrieval... found Paris.
+Current Hypothesis: Paris
+Paris is the capital.
+Therefore, the answer is: Paris
+</THOUGHT>
+</THOUGHT>
+<JSON>
 {{
-    "answer": "Your current best answer to the question",
-    "followup_query": "A specific follow-up question if you need more information, or empty string if you have enough",
-    "confidence": 0.0-1.0 (your confidence in the answer, where 1.0 is completely certain)
+    "answer": "<Insert your answer here>",
+    "has_enough_evidence": <true or false>,
+    "supporting_quotes": ["<quote 1>", "<quote 2>"],
+    "followup_query": "<Insert follow-up question here, or empty string if done>",
+    "confidence": <float between 0.0 and 1.0>
 }}
+</JSON>
 
 Instructions:
-- If the evidence contains enough information to answer the question, provide the answer and set confidence high (>0.8)
+- Use the <THOUGHT> block to analyze the evidence and converge on an answer
+- If the evidence contains enough information, set has_enough_evidence to true
 - If you need more specific information, create a focused follow-up query
-- Be concise and direct in your answer
-- Only output valid JSON, nothing else
+- Only output the XML-like blocks as specified
+- End your output with the exact string: <END_JSON>
 
-JSON Response:"""
+Response:"""
     
     return prompt
 

@@ -98,31 +98,35 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     Returns:
         Parsed JSON dict or None if extraction fails
     """
-    # Try direct parsing first
-    try:
-        return json.loads(text.strip())
-    except json.JSONDecodeError:
-        pass
+    # Remove known stop tokens and markdown
+    text = text.replace('<END_JSON>', '')
+    text = re.sub(r'```json\s*', '', text)
+    text = re.sub(r'```\s*', '', text)
     
     # Try to find JSON block
     start_idx = text.find('{')
     if start_idx == -1:
         return None
+        
+    # Find the last closing brace
+    end_idx = text.rfind('}')
+    if end_idx == -1 or end_idx < start_idx:
+        return None
+        
+    candidate = text[start_idx:end_idx+1]
     
-    # Find matching closing brace
-    depth = 0
-    for i in range(start_idx, len(text)):
-        if text[i] == '{':
-            depth += 1
-        elif text[i] == '}':
-            depth -= 1
-            if depth == 0:
-                json_str = text[start_idx:i+1]
-                try:
-                    return json.loads(json_str)
-                except json.JSONDecodeError:
-                    return None
-    
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        # Try to fix common issues
+        try:
+            # Remove trailing commas
+            candidate = re.sub(r',\s*}', '}', candidate)
+            candidate = re.sub(r',\s*]', ']', candidate)
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+             pass
+             
     return None
 
 

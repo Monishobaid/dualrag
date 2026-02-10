@@ -22,6 +22,11 @@ class Embedder:
         self.device = self._get_device(device)
         
         logging.info(f"Loading embedding model: {model_name}")
+        # Handle 'auto' device selection more robustly
+        if self.device == "cuda" and not torch.cuda.is_available():
+            logging.warning("CUDA requested but not available. Falling back to CPU.")
+            self.device = "cpu"
+            
         self.model = SentenceTransformer(model_name, device=self.device)
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         logging.info(f"Embedding dimension: {self.embedding_dim}")

@@ -1,21 +1,22 @@
 """Text generation utilities."""
 
 import torch
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 import logging
 from src.llm.qwen import QwenModel
+from src.llm.azure_openai import AzureOpenAIModel
 from src.utils.text import extract_json_from_text
 
 
 class TextGenerator:
     """Wrapper for text generation with utilities."""
     
-    def __init__(self, model: QwenModel):
+    def __init__(self, model: Union[QwenModel, AzureOpenAIModel]):
         """
         Initialize generator.
         
         Args:
-            model: QwenModel instance
+            model: Model instance (Qwen or Azure OpenAI)
         """
         self.model = model
     
@@ -40,12 +41,45 @@ class TextGenerator:
         Returns:
             Dictionary with 'text' and 'num_tokens'
         """
-        text, num_tokens = self.model.generate_with_token_count(
-            prompt=prompt,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_p=top_p
-        )
+    def generate(
+        self,
+        prompt: str,
+        system_message: Optional[str] = None,
+        max_new_tokens: int = 256,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+        stop_strings: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate text with metadata.
+        
+        Args:
+            prompt: Input prompt
+            system_message: Optional system instruction (for chat models)
+            max_new_tokens: Maximum tokens to generate
+            temperature: Sampling temperature
+            top_p: Nucleus sampling
+            stop_strings: Optional stop strings
+        
+        Returns:
+            Dictionary with 'text' and 'num_tokens'
+        """
+        if isinstance(self.model, AzureOpenAIModel):
+             text, num_tokens = self.model.generate_with_token_count(
+                prompt=prompt,
+                system_message=system_message,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p
+            )
+        else:
+            # Default path (Qwen)
+            text, num_tokens = self.model.generate_with_token_count(
+                prompt=prompt,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p
+            )
         
         # Apply stop strings
         if stop_strings:
@@ -109,12 +143,12 @@ class TextGenerator:
 class ChunkedGenerator:
     """Generator that produces text in chunks for early stopping."""
     
-    def __init__(self, model: QwenModel, chunk_tokens: int = 64):
+    def __init__(self, model: Union[QwenModel, AzureOpenAIModel], chunk_tokens: int = 64):
         """
         Initialize chunked generator.
         
         Args:
-            model: QwenModel instance
+            model: Model instance
             chunk_tokens: Tokens per chunk
         """
         self.model = model
@@ -179,6 +213,7 @@ class ChunkedGenerator:
     def generate_with_callback(
         self,
         prompt: str,
+        system_message: Optional[str] = None,
         max_chunks: int = 8,
         temperature: float = 0.7,
         callback = None
@@ -188,30 +223,47 @@ class ChunkedGenerator:
         
         Args:
             prompt: Input prompt
+            system_message: Optional system instruction
             max_chunks: Maximum chunks
             temperature: Sampling temperature
             callback: Function called after each chunk, receives (chunk, all_chunks).
                      Should return True to continue, False to stop.
         
         Returns:
-            Final result with all chunks and metadata
+            Dictionary with 'text', 'early_stop_stats'
         """
         chunks = []
+        cumulative_text = ""
+        early_stop_stats = {
+            'stopped_early': False,
+            'num_chunks': 0,
+            'convergence_score': 0.0
+        }
         
         for chunk_idx in range(max_chunks):
-            current_prompt = prompt + ("" if chunk_idx == 0 else "".join(c['text'] for c in chunks))
+            # Generate one chunk
+            current_prompt = prompt + cumulative_text
             
-            text, num_tokens = self.model.generate_with_token_count(
-                prompt=current_prompt,
-                max_new_tokens=self.chunk_tokens,
-                temperature=temperature
-            )
+            # Pass system message if available
+            if isinstance(self.model, AzureOpenAIModel) and system_message:
+                text, num_tokens = self.model.generate_with_token_count(
+                    prompt=current_prompt,
+                    system_message=system_message,
+                    max_new_tokens=self.chunk_tokens,
+                    temperature=temperature
+                )
+            else:
+                 text, num_tokens = self.model.generate_with_token_count(
+                    prompt=current_prompt,
+                    max_new_tokens=self.chunk_tokens,
+                    temperature=temperature
+                )
             
             chunk = {
                 'chunk_idx': chunk_idx,
                 'text': text,
                 'num_tokens': num_tokens,
-                'cumulative_text': ("" if chunk_idx == 0 else chunks[-1]['cumulative_text']) + text
+                'cumulative_text': cumulative_text + text
             }
             
             chunks.append(chunk)
