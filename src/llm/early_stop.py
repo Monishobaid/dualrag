@@ -61,7 +61,12 @@ class AnswerConvergenceStopper:
         import json
         import re
         
-        # Look for "answer": "..." pattern even if JSON is incomplete
+        # Look for "current_hypothesis": "..." pattern first
+        hyp_match = re.search(r'"current_hypothesis"\s*:\s*"([^"]+)"', text)
+        if hyp_match:
+            return hyp_match.group(1).strip()
+            
+        # Look for "answer": "..." pattern
         json_match = re.search(r'"answer"\s*:\s*"([^"]+)"', text)
         if json_match:
             return json_match.group(1).strip()

@@ -407,17 +407,37 @@ class IterativeRAG:
             supporting_quotes = []
             
         # Retrieval Drift Prevention
+        trivial_answers = {"yes", "no", "true", "false", "none", "n/a", "not enough information", "i cannot answer"}
+        
         # If the model didn't give a followup query, check if we should verify
         if not followup_query:
             # Avoid verifying trivial/short answers which leads to drift
-            trivial_answers = {"yes", "no", "true", "false", "none", "n/a"}
             if answer.lower() in trivial_answers or len(answer) < 4:
                  logging.info(f"Answer '{answer}' is trivial/short. Defaulting followup to original question.")
                  followup_query = question
             else:
                  # Standard verification
                  followup_query = "" # Let the outer loop decide (it usually does 'evidence for X')
-        
+        # Grounding Check (Guard B)
+        # Ensure the answer actually appears in the retrieved text (to prevention hallucinations)
+        if confidence > 0.5 and answer and len(answer) > 4:
+             # Normalize for check
+             ans_norm = answer.lower().strip('"').strip("'")
+             is_trivial = ans_norm in trivial_answers
+             
+             if not is_trivial:
+                 found_in_text = False
+                 for item in evidence:
+                     if ans_norm in item['text'].lower() or ans_norm in item['title'].lower():
+                         found_in_text = True
+                         break
+                 
+                 if not found_in_text:
+                     logging.warning(f"Grounding Check Warning: Answer '{answer}' not found in evidence. Downgrading confidence.")
+                     confidence = 0.2
+                     has_enough_evidence = False
+                     followup_query = f"evidence for {answer}" # Force verification
+
         return {
             'answer': answer,
             'followup_query': followup_query,

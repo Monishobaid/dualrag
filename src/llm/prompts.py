@@ -70,7 +70,8 @@ Therefore, the answer is: Paris
 </THOUGHT>
 <JSON>
 {{
-    "answer": "<Insert your answer here>",
+    "current_hypothesis": "<Brief answer based on current knowledge>",
+    "answer": "<Insert your final answer here>",
     "has_enough_evidence": <true or false>,
     "supporting_quotes": ["<quote 1>", "<quote 2>"],
     "followup_query": "<Insert follow-up question here, or empty string if done>",
