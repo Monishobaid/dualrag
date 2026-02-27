@@ -105,7 +105,8 @@ class AzureOpenAIModel:
         temperature: float = 0.7,
         top_p: float = 0.9,
         stop_strings: Optional[List[str]] = None,
-        return_full_text: bool = False
+        return_full_text: bool = False,
+        response_format: Optional[Dict[str, str]] = None
     ) -> str:
         """
         Generate text from prompt.
@@ -134,7 +135,8 @@ class AzureOpenAIModel:
                 max_tokens=max_new_tokens,
                 temperature=temperature,
                 top_p=top_p,
-                stop=stop_strings
+                stop=stop_strings,
+                response_format=response_format
             )
             
             generated_text = response.choices[0].message.content
@@ -155,6 +157,8 @@ class AzureOpenAIModel:
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        stop_strings: Optional[List[str]] = None,
+        response_format: Optional[Dict[str, str]] = None
     ) -> Tuple[str, int]:
         """
         Generate text and return token count.
@@ -174,7 +178,9 @@ class AzureOpenAIModel:
             system_message=system_message,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            stop_strings=stop_strings,
+            response_format=response_format
         )
         
         num_tokens = self.count_tokens(generated_text)

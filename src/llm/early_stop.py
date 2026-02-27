@@ -153,6 +153,17 @@ class AnswerConvergenceStopper:
             'answer_normalized': answer_norm
         })
         
+        # CRITICAL FIX: Only consider stopping if JSON structure is complete
+        # We look for </JSON> or <END_JSON> OR balanced braces (ignoring trailing text)
+        has_tags = ("</JSON>" in cumulative_text or "<END_JSON>" in cumulative_text)
+        # Check if braces are balanced. This handles nested objects correctly too.
+        has_balanced_braces = (cumulative_text.count("{") > 0 and cumulative_text.count("{") == cumulative_text.count("}"))
+        
+        is_complete = (has_tags or has_balanced_braces)
+        
+        if not is_complete:
+            return True # Continue generation until complete
+        
         # Check convergence
         if len(self.extracted_answers) >= self.convergence_k + 1:
             # Check last k+1 answers
@@ -202,7 +213,10 @@ def generate_with_reasoning_stop(
     max_chunks: int = 8,
     convergence_k: int = 2,
     temperature: float = 0.7,
-    text_generator = None
+    text_generator = None,
+    stopper = None,
+    max_new_tokens: int = 512,
+    stop_strings: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Generate text with reasoning early stopping.
@@ -218,22 +232,29 @@ def generate_with_reasoning_stop(
     Returns:
         Generation result with early stopping metadata
     """
-    stopper = AnswerConvergenceStopper(
-        convergence_k=convergence_k,
-        text_generator=text_generator
-    )
+    if stopper is None:
+        stopper = AnswerConvergenceStopper(
+            convergence_k=convergence_k,
+            text_generator=text_generator
+        )
     
     # Generate with callback
     
     # Check if system message should be used
-    from src.llm.prompts import SYSTEM_PROMPT
+    from src.llm.prompts import JSON_SYSTEM_PROMPT
     
+    # Calculate chunks needed
+    chunk_size = chunked_generator.chunk_tokens
+    calculated_max_chunks = max(1, max_new_tokens // chunk_size)
+        
     result = chunked_generator.generate_with_callback(
         prompt=prompt,
-        system_message=SYSTEM_PROMPT,
-        max_chunks=max_chunks,
+        system_message=JSON_SYSTEM_PROMPT,
+        max_chunks=calculated_max_chunks,
         temperature=temperature,
-        callback=stopper.check_chunk
+        callback=stopper.check_chunk,
+        stop_strings=stop_strings,
+        response_format={"type": "json_object"}
     )
     
     # Add stopping stats

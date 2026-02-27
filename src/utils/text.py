@@ -3,38 +3,31 @@
 import re
 import string
 import json
+import logging
 from typing import Optional, Tuple, List
 
 
 def normalize_text(text: str) -> str:
     """
     Normalize text for answer matching (HotpotQA style).
-    
-    Steps:
-    - Lowercase
-    - Remove punctuation
-    - Remove articles (a, an, the)
-    - Collapse whitespace
-    
-    Args:
-        text: Input text
-    
-    Returns:
-        Normalized text
     """
-    # Lowercase
-    text = text.lower()
-    
-    # Remove punctuation
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    
-    # Remove articles
-    text = re.sub(r'\b(a|an|the)\b', ' ', text)
-    
-    # Collapse whitespace
-    text = ' '.join(text.split())
-    
-    return text.strip()
+    if not text:
+        return ""
+        
+    def remove_articles(text):
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
+
+    def white_space_fix(text):
+        return ' '.join(text.split())
+
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return ''.join(ch for ch in text if ch not in exclude)
+
+    def lower(text):
+        return text.lower()
+
+    return white_space_fix(remove_articles(remove_punc(lower(text))))
 
 
 def compute_exact_match(prediction: str, ground_truth: str) -> float:
@@ -103,30 +96,79 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     text = re.sub(r'```json\s*', '', text)
     text = re.sub(r'```\s*', '', text)
     
-    # Try to find JSON block
-    start_idx = text.find('{')
-    if start_idx == -1:
-        return None
-        
-    # Find the last closing brace
-    end_idx = text.rfind('}')
-    if end_idx == -1 or end_idx < start_idx:
-        return None
-        
-    candidate = text[start_idx:end_idx+1]
+    # Prioritize <JSON> tags if present - Robust Regex
+    # Matches <JSON>, optionally content, then </JSON>, ignoring case and leading/trailing junk
+    json_tag_match = re.search(r'<JSON>\s*(?:```json)?\s*(.*?)\s*(?:```)?\s*</JSON>', text, re.DOTALL | re.IGNORECASE)
+    if json_tag_match:
+        text = json_tag_match.group(1).strip()
     
-    try:
-        return json.loads(candidate)
-    except json.JSONDecodeError:
-        # Try to fix common issues
+    # Try strict parsing first
+    extracted = None
+    start_idx = text.find('{')
+    end_idx = text.rfind('}')
+    
+    if start_idx != -1 and end_idx > start_idx:
+        candidate = text[start_idx:end_idx+1]
         try:
-            # Remove trailing commas
-            candidate = re.sub(r',\s*}', '}', candidate)
-            candidate = re.sub(r',\s*]', ']', candidate)
-            return json.loads(candidate)
+            extracted = json.loads(candidate)
         except json.JSONDecodeError:
-             pass
+            # Try to fix common issues
+            try:
+                # Remove trailing commas
+                candidate_fix = re.sub(r',\s*}', '}', candidate)
+                candidate_fix = re.sub(r',\s*]', ']', candidate_fix)
+                extracted = json.loads(candidate_fix)
+            except json.JSONDecodeError as e:
+                 logging.warning(f"DEBUG: JSON Parse Failed.\nOriginal: {text[:100]}...\nCandidate: {candidate}\nError: {e}")
+                 pass
+
+    if extracted:
+        return extracted
              
+     # Fallback: Regex extraction for critical fields if JSON parse fails (e.g. truncation or missing braces)
+    logging.warning(f"DEBUG: strict JSON parse failed (braces missing or invalid). Attempting regex fallback. Raw text snippet:\n{text[:500]}...")
+    
+    extracted = {}
+    
+    # Extract Answer
+    ans_match = re.search(r'"answer"\s*:\s*"([^"]+)"', text)
+    if ans_match:
+        extracted['answer'] = ans_match.group(1).strip()
+    else:
+        # Try single quotes
+        ans_match = re.search(r"'answer'\s*:\s*'([^']+)'", text)
+        if ans_match:
+             extracted['answer'] = ans_match.group(1).strip()
+
+    # Extract Confidence - handle optional quotes
+    conf_match = re.search(r'"confidence"\s*:\s*"?([\d\.]+)"?', text)
+    if conf_match:
+        try:
+            val = float(conf_match.group(1))
+            extracted['confidence'] = val
+        except ValueError:
+            extracted['confidence'] = 0.5
+            
+    # Extract Follow-up
+    fup_match = re.search(r'"followup_query"\s*:\s*"([^"]+)"', text)
+    if fup_match:
+        extracted['followup_query'] = fup_match.group(1).strip()
+        
+    # Extract Evidence Flag
+    ev_match = re.search(r'"has_enough_evidence"\s*:\s*(true|false|True|False)', text)
+    if ev_match:
+        extracted['has_enough_evidence'] = ev_match.group(1).lower() == 'true'
+
+    if 'answer' in extracted:
+        logging.info(f"DEBUG: Recovered partial JSON: {extracted}")
+        # Fill missing defaults
+        if 'confidence' not in extracted: extracted['confidence'] = 0.5
+        if 'reasoning' not in extracted: extracted['reasoning'] = "Parsed from partial JSON"
+        if 'followup_query' not in extracted: extracted['followup_query'] = ""
+        if 'has_enough_evidence' not in extracted: extracted['has_enough_evidence'] = False
+        if 'supporting_quotes' not in extracted: extracted['supporting_quotes'] = []
+        return extracted
+
     return None
 
 

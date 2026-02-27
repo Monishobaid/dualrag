@@ -20,27 +20,7 @@ class TextGenerator:
         """
         self.model = model
     
-    def generate(
-        self,
-        prompt: str,
-        max_new_tokens: int = 256,
-        temperature: float = 0.7,
-        top_p: float = 0.9,
-        stop_strings: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """
-        Generate text with metadata.
-        
-        Args:
-            prompt: Input prompt
-            max_new_tokens: Maximum tokens to generate
-            temperature: Sampling temperature
-            top_p: Nucleus sampling
-            stop_strings: Optional stop strings
-        
-        Returns:
-            Dictionary with 'text' and 'num_tokens'
-        """
+
     def generate(
         self,
         prompt: str,
@@ -48,7 +28,8 @@ class TextGenerator:
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         top_p: float = 0.9,
-        stop_strings: Optional[List[str]] = None
+        stop_strings: Optional[List[str]] = None,
+        response_format: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
         Generate text with metadata.
@@ -70,7 +51,8 @@ class TextGenerator:
                 system_message=system_message,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
-                top_p=top_p
+                top_p=top_p,
+                response_format=response_format
             )
         else:
             # Default path (Qwen)
@@ -116,7 +98,8 @@ class TextGenerator:
                 prompt=prompt,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature if attempt == 0 else 0.3,  # Lower temp on retry
-                stop_strings=['\n\n', '```']
+                stop_strings=['\n\n', '```'],
+                response_format={"type": "json_object"}
             )
             
             text = result['text']
@@ -159,7 +142,8 @@ class ChunkedGenerator:
         prompt: str,
         max_chunks: int = 8,
         temperature: float = 0.7,
-        top_p: float = 0.9
+        top_p: float = 0.9,
+        response_format: Optional[Dict[str, str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Generate text in chunks.
@@ -187,7 +171,8 @@ class ChunkedGenerator:
                 prompt=current_prompt,
                 max_new_tokens=self.chunk_tokens,
                 temperature=temperature,
-                top_p=top_p
+                top_p=top_p,
+                response_format=response_format
             )
             
             # Check if generation finished (very short output)
@@ -216,7 +201,9 @@ class ChunkedGenerator:
         system_message: Optional[str] = None,
         max_chunks: int = 8,
         temperature: float = 0.7,
-        callback = None
+        callback = None,
+        stop_strings: Optional[List[str]] = None,
+        response_format: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
         Generate with callback after each chunk for early stopping.
@@ -250,20 +237,28 @@ class ChunkedGenerator:
                     prompt=current_prompt,
                     system_message=system_message,
                     max_new_tokens=self.chunk_tokens,
-                    temperature=temperature
+                    temperature=temperature,
+                    stop_strings=stop_strings,
+                    response_format=response_format
                 )
             else:
                  text, num_tokens = self.model.generate_with_token_count(
                     prompt=current_prompt,
                     max_new_tokens=self.chunk_tokens,
-                    temperature=temperature
+                    temperature=temperature,
+                    stop_strings=stop_strings,
+                    response_format=response_format
                 )
+            
+            # Ensure text is not None
+            text = text or ""
+            cumulative_text += text
             
             chunk = {
                 'chunk_idx': chunk_idx,
                 'text': text,
                 'num_tokens': num_tokens,
-                'cumulative_text': cumulative_text + text
+                'cumulative_text': cumulative_text
             }
             
             chunks.append(chunk)

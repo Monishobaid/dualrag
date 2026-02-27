@@ -50,41 +50,29 @@ Question: {question}
 Evidence (Retrieved Information):
 {evidence_str}
 
-Based on the evidence above, first provide your step-by-step reasoning in a <THOUGHT> block.
-Then, provide your structured response in a <JSON> block.
-
+Based on the evidence above, provide your reasoning and structured response in a single valid JSON object. Do not use Markdown formatting (e.g. ```json).
 Format:
-<THOUGHT>
-Your detailed step-by-step reasoning here.
-When you form a hypothesis, state: "Current Hypothesis: <your answer>"
-At the end of your thought, state: "Therefore, the answer is: <your answer>"
-
-Example:
-<THOUGHT>
-The user is asking about the capital of France.
-Checking retrieval... found Paris.
-Current Hypothesis: Paris
-Paris is the capital.
-Therefore, the answer is: Paris
-</THOUGHT>
-</THOUGHT>
-<JSON>
 {{
     "current_hypothesis": "<Brief answer based on current knowledge>",
-    "answer": "<Insert your final answer here>",
+    "answer": "<Insert your final answer here (SHORT SPAN ONLY, NO SENTENCES)>",
     "has_enough_evidence": <true or false>,
     "supporting_quotes": ["<quote 1>", "<quote 2>"],
     "followup_query": "<Insert follow-up question here, or empty string if done>",
-    "confidence": <float between 0.0 and 1.0>
+    "confidence": <float between 0.0 and 1.0>,
+    "reasoning": "<Concise reasoning (MAX 20 WORDS).>"
 }}
-</JSON>
 
 Instructions:
-- Use the <THOUGHT> block to analyze the evidence and converge on an answer
-- If the evidence contains enough information, set has_enough_evidence to true
-- If you need more specific information, create a focused follow-up query
-- Only output the XML-like blocks as specified
-- End your output with the exact string: <END_JSON>
+- "reasoning": Analyze briefly (MAX 20 WORDS). BE CONCISE.
+- "current_hypothesis": Brief answer based on current knowledge.
+- SHORT ANSWER: Return ONLY the entity, name, date, or number. Do NOT write full sentences like "The answer is...".
+- TYPE CONSISTENCY: Ensure your answer matches the specific type requested.
+- ATTRIBUTE SELECTION: If asked for an attribute of an entity, provide the attribute, not the entity itself.
+- CONSTRAINT SATISFACTION: If the question implies a singular answer, do not provide a list.
+- INTERMEDIATE HOPPING: If your "current_hypothesis" is a Place/Object but the Question asks "Who", you must form a follow-up query about that Place/Object to find the Who.
+- If the evidence contains enough information, set has_enough_evidence to true.
+- If you need more specific information, create a focused follow-up query.
+- CRITICAL: Return ONLY the JSON object. No preamble, no postscript.
 
 Response:"""
     
@@ -101,10 +89,19 @@ def get_answer_extraction_prompt(text: str) -> str:
     Returns:
         Extraction prompt
     """
-    prompt = f"""Extract the final answer from the following text. Return ONLY the short, direct answer with no explanation.
-
+    prompt = f"""Extract the final answer from the following text based on the user's implicit question type.
+    
 Text:
 {text}
+
+Instructions:
+1. Identify if the user is asking for a Person, Place, Number, Date, or Attribute.
+2. Select the candidate answer that matches this type.
+3. RULES:
+   - For PERSONS: Provide the FULL NAME (e.g., "Salma Hayek Pinault", not just "Salma Hayek").
+   - For NUMBERS: Include the UNIT if appropriate (e.g., "40 members", not just "40").
+   - For LISTS: If the question implies a single entity, pick the most prominent one.
+4. Return ONLY the short, direct answer.
 
 Final Answer:"""
     
@@ -142,6 +139,33 @@ If you have enough information already, respond with "NONE".
 
 Follow-up question:"""
     
+    return prompt
+
+
+def get_answer_verification_prompt(question: str, answer: str) -> str:
+    """
+    Prompt to verify if the answer matches the question's semantic type constraint.
+    """
+    prompt = f"""Check if the Proposed Answer satisfies the specific semantic constraints of the Question (e.g., specific Nationality, Heritage, Genre, Number, etc).
+If the Proposed Answer is incorrect (e.g. wrong type, wrong entity), correct it using the Question context. If it is already correct, repeat it.
+
+Question: {question}
+Proposed Answer: {answer}
+
+Examples:
+Q: "Who starred in the film?" A: "Brad Pitt" -> Correct (Person)
+Q: "Starred the actress of what heritage?" A: "Brad Pitt" -> INCORRECT (Person, not Heritage). Correct: "American"
+Q: "How many members?" A: "The Senate" -> INCORRECT (Entity). Correct: "100"
+Q: "Who is the actress?" A: "Salma Hayek" -> VERIFIED: Salma Hayek Pinault (Prefer Full Name)
+
+Task:
+1. Identify the TYPE requested by the Question (e.g. Person, Heritage, Number).
+2. CRITICAL: Check if Proposed Answer matches that TYPE. If NO, Correct it immediately.
+3. ONLY IF Type matches: Check specific constraints (e.g. Full Name for Persons, Units for Numbers).
+4. If yes, output: VERIFIED: <Answer>
+5. If no, output: CORRECTION: <Corrected Answer based on context or type>
+
+Response:"""
     return prompt
 
 

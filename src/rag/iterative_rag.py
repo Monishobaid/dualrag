@@ -2,7 +2,7 @@
 
 from typing import Dict, Any, List, Optional, Union
 import logging
-from src.llm.prompts import get_multihop_reasoning_prompt
+from src.llm.prompts import get_multihop_reasoning_prompt, get_answer_extraction_prompt, get_answer_verification_prompt, get_followup_query_prompt
 from src.llm.generation import TextGenerator, ChunkedGenerator
 from src.llm.early_stop import generate_with_reasoning_stop
 from src.retrieval.ranker import ParagraphRanker, RetrievalHistory
@@ -82,6 +82,10 @@ class IterativeRAG:
         retrieval_stopped = False
         retrieval_stop_reason = None
         
+        # Track best answer found so far (fallback if final hop fails)
+        best_answer = ""
+        best_confidence = 0.0
+        
         for hop in range(1, max_hops + 1):
             print(f"\n{'='*80}")
             print(f"🔄 HOP {hop}/{max_hops}")
@@ -100,7 +104,13 @@ class IterativeRAG:
             prev_results = retrieval_history.get_latest_results()
 
             # Rank paragraphs
-            exclude_titles = retrieval_history.all_retrieved_titles if hop > 1 else None
+            # Fix A: Only exclude titles if candidate pool is large enough
+            should_exclude = True
+            if len(candidate_paragraphs) <= top_k: # If pool is small (e.g. distractor has ~10), don't exclude unless we have excess
+                 should_exclude = False
+            
+            exclude_titles = retrieval_history.all_retrieved_titles if (hop > 1 and should_exclude) else None
+            
             results = self.ranker.rank(
                 query=current_query,
                 paragraphs=candidate_paragraphs,
@@ -186,11 +196,29 @@ class IterativeRAG:
 
             hop_history.append(hop_data)
             
+            # Update best answer if confidence improved and answer is valid
+            current_conf = hop_result.get('confidence', 0.0)
+            current_ans = hop_result.get('answer', "").strip()
+            
+            if current_conf > best_confidence and current_ans and len(current_ans) > 1:
+                logging.info(f"New best answer found (conf: {current_conf:.2f}): {current_ans}")
+                best_confidence = current_conf
+                best_answer = current_ans
+            
             # === STOPPING DECISIONS ===
             print(f"🛑 STOPPING CHECK")
             print(f"-" * 80)
 
             # Check retrieval stopping
+            # Special fast-exit for Hop 1: If confidence is very high, stop even if min_hops not met
+            # DISABLE for now as model is overconfident (stopped 50% wrong at Hop 1)
+            # if hop == 1 and hop_result['confidence'] >= 0.9:
+            #      retrieval_stopped = True
+            #      retrieval_stop_reason = "high_confidence_early_exit"
+            #      logging.info("High confidence (>= 0.9) in Hop 1. Stopping early despite min_hops.")
+            #      print(f"\n✅ Retrieval stopped: {retrieval_stop_reason}")
+            #      break
+
             if self.config and self.config.enable_retrieval_stop and self.retrieval_stopper:
                 should_stop, reason = self.retrieval_stopper.should_stop(
                     current_hop=hop,
@@ -227,19 +255,9 @@ class IterativeRAG:
                     logging.info(f"No follow-up query but min_hops ({self.config.min_hops}) not reached. Forcing continuation.")
                     print(f"\n⚠️  No follow-up query, but min_hops ({self.config.min_hops}) not reached.")
                     
-                    # Generate fallback query
-                    ans = (hop_result.get('answer') or "").strip()
-                    
-                    # If answer looks like JSON or too long, do NOT use it for query
-                    if ans.startswith("{") or ans.endswith("}") or len(ans) > 40:
-                        followup_query = question
-                        print(f"➡️  Forcing continuation with original question (answer unsafe for query)")
-                    elif ans:
-                        followup_query = f"evidence for {ans}"
-                        print(f"➡️  Forcing continuation with verification query: {followup_query}")
-                    else:
-                        followup_query = question
-                        print(f"➡️  Forcing continuation with original question")
+                    # Fix D: Do not poison query with answer
+                    followup_query = question 
+                    print(f"➡️  Forcing continuation with original question")
                 
                 # ALSO force continuation if the stopper said we should continue (i.e. we didn't break above)
                 # This handles cases where answer is unstable but model thinks it's done
@@ -247,17 +265,9 @@ class IterativeRAG:
                      logging.info(f"No follow-up query but retrieval stopper says CONTINUE. Forcing continuation.")
                      print(f"\n⚠️  No follow-up query, but stopping criteria NOT met (e.g. answer unstable).")
                      
-                     # Generate fallback query from ans
-                     ans = (hop_result.get('answer') or "").strip()
-                     if ans.startswith("{") or ans.endswith("}") or len(ans) > 40:
-                        followup_query = question
-                        print(f"➡️  Forcing continuation with original question (answer unsafe for query)")
-                     elif ans:
-                        followup_query = f"evidence for {ans}"
-                        print(f"➡️  Forcing continuation with verification query: {followup_query}")
-                     else:
-                        followup_query = question
-                        print(f"➡️  Forcing continuation with original question")
+                     # Fix D: Do not poison query with answer
+                     followup_query = question
+                     print(f"➡️  Forcing continuation with original question")
 
                 else:
                     # No follow-up needed
@@ -272,6 +282,21 @@ class IterativeRAG:
         
         # === FINAL RESULTS ===
         final_answer = hop_history[-1]['answer'] if hop_history else ""
+        
+        # Fallback to best answer if final is empty/failed but we had a good one earlier
+        # Logic: If final answer is empty or very short (<2 chars), AND we have a best answer
+        should_fallback = (not final_answer or len(final_answer.strip()) < 2) and best_answer
+        
+        if should_fallback:
+             final_answer = best_answer
+             msg = f"Final answer empty/failed. Using best answer found (Conf: {best_confidence:.2f}): {best_answer}"
+             print(f"\n⚠️  {msg}")
+             logging.warning(msg)
+             # Append note to stop reason
+             if retrieval_stop_reason:
+                retrieval_stop_reason += "_fallback_to_best"
+             else:
+                retrieval_stop_reason = "fallback_to_best"
 
         print(f"\n{'='*80}")
         print(f"🎯 FINAL RESULTS")
@@ -321,34 +346,47 @@ class IterativeRAG:
         prompt = get_multihop_reasoning_prompt(question, evidence, hop)
         
         # Generate with or without reasoning stop
-        if self.config and self.config.enable_reasoning_stop:
+        # FORCE DISABLE chunked generation to avoid repetition loops
+        enable_reasoning_stop = False # self.config and self.config.enable_reasoning_stop
+        
+        if enable_reasoning_stop:
             # Use chunked generation with early stopping
             result = generate_with_reasoning_stop(
                 chunked_generator=self.chunked_generator,
                 prompt=prompt,
-                max_chunks=self.config.max_new_tokens // self.config.chunk_tokens,
-                convergence_k=self.config.convergence_k,
-                temperature=self.config.temperature,
-                text_generator=self.text_generator
+                temperature=self.config.temperature if self.config else 0.7,
+                text_generator=self.text_generator,
+                stop_strings=["\n\n", "```", "}"], # Aggressive stop at JSON close
+                max_new_tokens=512  # FORCE CAP
             )
             
             generated_text = result['text']
+            # If we aggressive stopped at '}', re-append it
+            if generated_text.strip() and not generated_text.strip().endswith('}'):
+                 generated_text += "}"
+            
             num_tokens = result['num_tokens']
             stopped_early = result['early_stop_stats']['stopped_early']
             early_stop_stats = result['early_stop_stats']
             
         else:
             # Standard generation
-            from src.llm.prompts import SYSTEM_PROMPT
+            from src.llm.prompts import SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
             
             result = self.text_generator.generate(
                 prompt=prompt,
-                system_message=SYSTEM_PROMPT,
-                max_new_tokens=self.config.max_new_tokens if self.config else 256,
-                temperature=self.config.temperature if self.config else 0.7
+                system_message=JSON_SYSTEM_PROMPT,
+                max_new_tokens=512,  # FORCE CAP: Prevent infinite reasoning loops
+                stop_strings=["\n\n", "```", "}"], # Aggressive stop at JSON close
+                temperature=self.config.temperature if self.config else 0.7,
+                response_format={"type": "json_object"}
             )
             
             generated_text = result['text']
+            # If we aggressive stopped at '}', re-append it
+            if generated_text.strip() and not generated_text.strip().endswith('}'):
+                 generated_text += "}"
+            
             num_tokens = result['num_tokens']
             stopped_early = False
             early_stop_stats = {}
@@ -376,36 +414,20 @@ class IterativeRAG:
             confidence = float(parsed.get('confidence', 0.5))
             has_enough_evidence = bool(parsed.get('has_enough_evidence', True))
             supporting_quotes = parsed.get('supporting_quotes', [])
-        else:
-            # Fallback parsing
-            logging.warning("Failed to parse JSON, using answer extraction fallback")
             
-            # Use LLM to extract answer if available
-            try:
-                from src.llm.prompts import get_answer_extraction_prompt
-                extract_prompt = get_answer_extraction_prompt(generated_text)
-                extract = self.text_generator.generate(
-                    prompt=extract_prompt,
-                    max_new_tokens=32,
-                    temperature=0.0
-                )
-                answer = extract['text'].strip()
-                # If we got a decent answer, be more confident
-                if len(answer) > 2 and "not provide" not in answer.lower():
-                     confidence = 0.6
-                     has_enough_evidence = True
-                else:
-                     confidence = 0.2
-                     has_enough_evidence = False
-            except Exception as e:
-                logging.warning(f"Fallback extraction failed: {e}")
-                answer = generated_text[:200]
-                confidence = 0.2
-                has_enough_evidence = False
-                
+
+        else:
+            # Fallback: JSON parsing failed
+            logging.warning("JSON parsing failed. Returning empty answer to force retry or stop.")
+            answer = ""
+            confidence = 0.0
+            has_enough_evidence = False
             followup_query = ""
             supporting_quotes = []
             
+        # Semantic Verification removed to reduce noise/hallucination loops
+        # Logic simplified to rely on strict JSON output or retrieval loop fallback
+
         # Retrieval Drift Prevention
         trivial_answers = {"yes", "no", "true", "false", "none", "n/a", "not enough information", "i cannot answer"}
         
@@ -436,7 +458,7 @@ class IterativeRAG:
                      logging.warning(f"Grounding Check Warning: Answer '{answer}' not found in evidence. Downgrading confidence.")
                      confidence = 0.2
                      has_enough_evidence = False
-                     followup_query = f"evidence for {answer}" # Force verification
+                     # Let outer loop handle fallback query naturally
 
         return {
             'answer': answer,
