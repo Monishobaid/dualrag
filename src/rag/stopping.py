@@ -57,52 +57,17 @@ class RetrievalStopper:
         if not hop_history[-1].get('has_enough_evidence', True):
             return False, "insufficient_evidence"
 
-        # Must meet minimum hops
-        if current_hop < self.min_hops:
-            return False, "below_min_hops"
-        
-        if len(hop_history) < 2:
-            return False, "insufficient_history"
-        
-        # Check answer stability
-        recent_hops = hop_history[-self.answer_stability_window:]
-        answers_norm = [normalize_text(h['answer']) for h in recent_hops]
-        
-        answer_stable = len(set(answers_norm)) == 1 and answers_norm[0]  # All same and not empty
-        
-        # Check latest confidence
+        # If we have high confidence and enough evidence, we can stop immediately
         latest_confidence = hop_history[-1].get('confidence', 0.0)
         high_confidence = latest_confidence >= self.conf_threshold
         
-        # Check retrieval novelty
-        low_novelty = False
-        if retrieval_novelty:
-            jaccard_overlap = retrieval_novelty.get('jaccard_overlap', 0.0)
-            low_novelty = jaccard_overlap >= self.overlap_threshold
-        
-        # Decision logic: stop if answer is stable and confident
-        # We trust the model's stability more than retrieval novelty
-        if answer_stable and high_confidence:
-            reason = f"answer_stable_and_high_conf"
+        if high_confidence:
+            reason = f"high_confidence_hop_{current_hop}"
             logging.info(f"Retrieval stopping at hop {current_hop}: {reason}")
             return True, reason
-            
-        # Stopping if very high confidence even if not strictly stable history (e.g. first hop super confident? No, requires history)
-        # But if we have low novelty and ANY confidence, maybe stop? No.
         
-        # Original strict check:
-        # if answer_stable and high_confidence and low_novelty: ...
-        
-        # Continue
-        reasons = []
-        if not answer_stable:
-            reasons.append("answer_unstable")
-        if not high_confidence:
-            reasons.append(f"low_conf_{latest_confidence:.2f}")
-        if not low_novelty:
-            reasons.append("high_novelty")
-        
-        reason = "_".join(reasons) if reasons else "continue"
+        # We didn't stop, which means confidence was not high enough
+        reason = f"low_conf_{latest_confidence:.2f}"
         return False, reason
     
     def get_stopping_stats(

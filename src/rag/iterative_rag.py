@@ -162,6 +162,7 @@ class IterativeRAG:
             # Display generation results
             print(f"💡 Generated Response:")
             print(f"  - Answer: {hop_result['answer']}")
+            print(f"  - Reasoning: {hop_result.get('reasoning', 'N/A')}")
             print(f"  - Confidence: {hop_result['confidence']:.2f}")
             print(f"  - Has evidence: {'✅ Yes' if hop_result.get('has_enough_evidence') else '❌ No'}")
             if hop_result.get('supporting_quotes'):
@@ -227,7 +228,7 @@ class IterativeRAG:
                 )
 
                 print(f"🔍 Retrieval stopping criteria:")
-                print(f"  - Current hop: {hop} (min: {self.config.min_hops})")
+                print(f"  - Current hop: {hop}")
                 print(f"  - Confidence: {hop_result['confidence']:.2f} (threshold: {self.config.conf_threshold})")
                 if retrieval_novelty:
                     print(f"  - Novelty overlap: {retrieval_novelty.get('jaccard_overlap', 0):.2f} (threshold: {self.config.overlap_threshold})")
@@ -402,7 +403,8 @@ class IterativeRAG:
                 "has_enough_evidence": True,
                 "confidence": 0.9,
                 "followup_query": "",
-                "supporting_quotes": []
+                "supporting_quotes": [],
+                "reasoning": "Answer converged during chunked generation."
             }
         else:
             # Normal parsing
@@ -414,7 +416,7 @@ class IterativeRAG:
             confidence = float(parsed.get('confidence', 0.5))
             has_enough_evidence = bool(parsed.get('has_enough_evidence', True))
             supporting_quotes = parsed.get('supporting_quotes', [])
-            
+            reasoning = parsed.get('reasoning', '')
 
         else:
             # Fallback: JSON parsing failed
@@ -424,6 +426,7 @@ class IterativeRAG:
             has_enough_evidence = False
             followup_query = ""
             supporting_quotes = []
+            reasoning = ""
             
         # Semantic Verification removed to reduce noise/hallucination loops
         # Logic simplified to rely on strict JSON output or retrieval loop fallback
@@ -440,6 +443,12 @@ class IterativeRAG:
             else:
                  # Standard verification
                  followup_query = "" # Let the outer loop decide (it usually does 'evidence for X')
+                 
+        # If followup query is exactly the same as the current question, it means the model is stuck
+        if followup_query.strip().lower() == question.strip().lower():
+             logging.warning("Follow-up query is identical to the current question. Clearing it to force outer loop fallback.")
+             followup_query = ""
+             
         # Grounding Check (Guard B)
         # Ensure the answer actually appears in the retrieved text (to prevention hallucinations)
         if confidence > 0.5 and answer and len(answer) > 4:
@@ -455,6 +464,42 @@ class IterativeRAG:
                          break
                  
                  if not found_in_text:
+                     # Fallback: check if most significant words exist independently
+                     import re
+                     words = [w for w in re.split(r'\W+', ans_norm) if len(w) > 2]
+                     if words:
+                         found_words = 0
+                         for w in words:
+                             word_found = False
+                             for item in evidence:
+                                 if w in item['text'].lower() or w in item['title'].lower():
+                                     word_found = True
+                                     break
+                             if word_found:
+                                 found_words += 1
+                         # If all words found, consider it grounded
+                         if found_words == len(words) and len(words) > 0:
+                             found_in_text = True
+                 
+                 if not found_in_text:
+                     # Check if all words in the answer are in the text (to handle combined answers like 'Israeli and Palestinian')
+                     import re
+                     words = set(w for w in re.split(r'\W+', ans_norm) if len(w) > 2)
+                     if words:
+                         found_all_words = True
+                         for w in words:
+                             word_found = False
+                             for item in evidence:
+                                 if w in item['text'].lower() or w in item['title'].lower():
+                                     word_found = True
+                                     break
+                             if not word_found:
+                                 found_all_words = False
+                                 break
+                         if found_all_words:
+                             found_in_text = True
+
+                 if not found_in_text:
                      logging.warning(f"Grounding Check Warning: Answer '{answer}' not found in evidence. Downgrading confidence.")
                      confidence = 0.2
                      has_enough_evidence = False
@@ -466,6 +511,7 @@ class IterativeRAG:
             'confidence': confidence,
             'has_enough_evidence': has_enough_evidence,
             'supporting_quotes': supporting_quotes,
+            'reasoning': reasoning,
             'num_tokens': num_tokens,
             'stopped_early': stopped_early,
             'early_stop_stats': early_stop_stats,

@@ -256,7 +256,7 @@ def generate_with_reasoning_stop(
         stop_strings=stop_strings,
         response_format={"type": "json_object"}
     )
-    
+
     # Add stopping stats
     result['early_stop_stats'] = stopper.get_stats()
     result['final_answer'] = stopper.get_final_answer()

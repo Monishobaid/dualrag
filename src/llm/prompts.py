@@ -69,9 +69,10 @@ Instructions:
 - TYPE CONSISTENCY: Ensure your answer matches the specific type requested.
 - ATTRIBUTE SELECTION: If asked for an attribute of an entity, provide the attribute, not the entity itself.
 - CONSTRAINT SATISFACTION: If the question implies a singular answer, do not provide a list.
-- INTERMEDIATE HOPPING: If your "current_hypothesis" is a Place/Object but the Question asks "Who", you must form a follow-up query about that Place/Object to find the Who.
-- If the evidence contains enough information, set has_enough_evidence to true.
-- If you need more specific information, create a focused follow-up query.
+- MISSING INFO: If the retrieved text mentions an entity but doesn't explicitly answer the question about that entity, set "has_enough_evidence" to false and write a "followup_query" specifically asking about that missing detail.
+- DO NOT GUESS: If you cannot find the EXACT answer in the text, you MUST ask a follow-up query. Focus on what details are missing.
+- INTERMEDIATE HOPPING: If your "current_hypothesis" is a Place/Object but the Question asks "Who" (or vice versa), you MUST form a follow-up query to bridge the gap.
+- CONFIDENCE SCORING: If you have to guess, or if you are asking a follow-up query, set confidence < 0.5.
 - CRITICAL: Return ONLY the JSON object. No preamble, no postscript.
 
 Response:"""
