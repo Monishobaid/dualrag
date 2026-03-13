@@ -3,38 +3,31 @@
 import re
 import string
 import json
+import logging
 from typing import Optional, Tuple, List
 
 
 def normalize_text(text: str) -> str:
     """
     Normalize text for answer matching (HotpotQA style).
-    
-    Steps:
-    - Lowercase
-    - Remove punctuation
-    - Remove articles (a, an, the)
-    - Collapse whitespace
-    
-    Args:
-        text: Input text
-    
-    Returns:
-        Normalized text
     """
-    # Lowercase
-    text = text.lower()
-    
-    # Remove punctuation
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    
-    # Remove articles
-    text = re.sub(r'\b(a|an|the)\b', ' ', text)
-    
-    # Collapse whitespace
-    text = ' '.join(text.split())
-    
-    return text.strip()
+    if not text:
+        return ""
+        
+    def remove_articles(text):
+        return re.sub(r'\b(a|an|the)\b', ' ', text)
+
+    def white_space_fix(text):
+        return ' '.join(text.split())
+
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return ''.join(ch for ch in text if ch not in exclude)
+
+    def lower(text):
+        return text.lower()
+
+    return white_space_fix(remove_articles(remove_punc(lower(text))))
 
 
 def compute_exact_match(prediction: str, ground_truth: str) -> float:
@@ -103,14 +96,22 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     text = re.sub(r'```json\s*', '', text)
     text = re.sub(r'```\s*', '', text)
     
-    # Try to find JSON block
+    # Prioritize <JSON> tags if present - Robust Regex
+    # Matches <JSON>, optionally content, then </JSON>, ignoring case and leading/trailing junk
+    json_tag_match = re.search(r'<JSON>\s*(?:```json)?\s*(.*?)\s*(?:```)?\s*</JSON>', text, re.DOTALL | re.IGNORECASE)
+    if json_tag_match:
+        text = json_tag_match.group(1).strip()
+    
+    # Try to find JSON block if tags missing
     start_idx = text.find('{')
     if start_idx == -1:
+        logging.warning(f"DEBUG: No JSON braces found in text:\n{text[:200]}...")
         return None
         
     # Find the last closing brace
     end_idx = text.rfind('}')
     if end_idx == -1 or end_idx < start_idx:
+        logging.warning(f"DEBUG: No closing JSON brace found. start_idx={start_idx}, end_idx={end_idx}, text tail:\n{text[-200:]}...")
         return None
         
     candidate = text[start_idx:end_idx+1]
@@ -124,7 +125,8 @@ def extract_json_from_text(text: str) -> Optional[dict]:
             candidate = re.sub(r',\s*}', '}', candidate)
             candidate = re.sub(r',\s*]', ']', candidate)
             return json.loads(candidate)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+             logging.warning(f"DEBUG: JSON Parse Failed.\nOriginal: {text[:100]}...\nCandidate: {candidate}\nError: {e}")
              pass
              
     return None

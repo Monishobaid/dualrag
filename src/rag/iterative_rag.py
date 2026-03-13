@@ -2,7 +2,7 @@
 
 from typing import Dict, Any, List, Optional, Union
 import logging
-from src.llm.prompts import get_multihop_reasoning_prompt
+from src.llm.prompts import get_multihop_reasoning_prompt, get_answer_extraction_prompt, get_answer_verification_prompt, get_followup_query_prompt
 from src.llm.generation import TextGenerator, ChunkedGenerator
 from src.llm.early_stop import generate_with_reasoning_stop
 from src.retrieval.ranker import ParagraphRanker, RetrievalHistory
@@ -235,8 +235,9 @@ class IterativeRAG:
                         followup_query = question
                         print(f"➡️  Forcing continuation with original question (answer unsafe for query)")
                     elif ans:
-                        followup_query = f"evidence for {ans}"
-                        print(f"➡️  Forcing continuation with verification query: {followup_query}")
+                        # Improved fallback query format per analysis
+                        followup_query = f"{question} answer: {ans}"
+                        print(f"➡️  Forcing continuation with context query: {followup_query}")
                     else:
                         followup_query = question
                         print(f"➡️  Forcing continuation with original question")
@@ -253,8 +254,8 @@ class IterativeRAG:
                         followup_query = question
                         print(f"➡️  Forcing continuation with original question (answer unsafe for query)")
                      elif ans:
-                        followup_query = f"evidence for {ans}"
-                        print(f"➡️  Forcing continuation with verification query: {followup_query}")
+                        followup_query = f"{question} answer: {ans}"
+                        print(f"➡️  Forcing continuation with context query: {followup_query}")
                      else:
                         followup_query = question
                         print(f"➡️  Forcing continuation with original question")
@@ -376,36 +377,20 @@ class IterativeRAG:
             confidence = float(parsed.get('confidence', 0.5))
             has_enough_evidence = bool(parsed.get('has_enough_evidence', True))
             supporting_quotes = parsed.get('supporting_quotes', [])
-        else:
-            # Fallback parsing
-            logging.warning("Failed to parse JSON, using answer extraction fallback")
             
-            # Use LLM to extract answer if available
-            try:
-                from src.llm.prompts import get_answer_extraction_prompt
-                extract_prompt = get_answer_extraction_prompt(generated_text)
-                extract = self.text_generator.generate(
-                    prompt=extract_prompt,
-                    max_new_tokens=32,
-                    temperature=0.0
-                )
-                answer = extract['text'].strip()
-                # If we got a decent answer, be more confident
-                if len(answer) > 2 and "not provide" not in answer.lower():
-                     confidence = 0.6
-                     has_enough_evidence = True
-                else:
-                     confidence = 0.2
-                     has_enough_evidence = False
-            except Exception as e:
-                logging.warning(f"Fallback extraction failed: {e}")
-                answer = generated_text[:200]
-                confidence = 0.2
-                has_enough_evidence = False
-                
+
+        else:
+            # Fallback: JSON parsing failed
+            logging.warning("JSON parsing failed. Returning empty answer to force retry or stop.")
+            answer = ""
+            confidence = 0.0
+            has_enough_evidence = False
             followup_query = ""
             supporting_quotes = []
             
+        # Semantic Verification removed to reduce noise/hallucination loops
+        # Logic simplified to rely on strict JSON output or retrieval loop fallback
+
         # Retrieval Drift Prevention
         trivial_answers = {"yes", "no", "true", "false", "none", "n/a", "not enough information", "i cannot answer"}
         
@@ -436,7 +421,7 @@ class IterativeRAG:
                      logging.warning(f"Grounding Check Warning: Answer '{answer}' not found in evidence. Downgrading confidence.")
                      confidence = 0.2
                      has_enough_evidence = False
-                     followup_query = f"evidence for {answer}" # Force verification
+                     # Let outer loop handle fallback query naturally
 
         return {
             'answer': answer,

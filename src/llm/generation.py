@@ -259,11 +259,15 @@ class ChunkedGenerator:
                     temperature=temperature
                 )
             
+            # Ensure text is not None
+            text = text or ""
+            cumulative_text += text
+            
             chunk = {
                 'chunk_idx': chunk_idx,
                 'text': text,
                 'num_tokens': num_tokens,
-                'cumulative_text': cumulative_text + text
+                'cumulative_text': cumulative_text
             }
             
             chunks.append(chunk)
