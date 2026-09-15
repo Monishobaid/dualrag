@@ -134,6 +134,19 @@ retrieval is perfect. Do not use it for deployment:
 python scripts/run_experiment.py --method oracle_evidence --max_examples 200 --seed 42
 ```
 
+Enable the model-free evidence critic to gate retrieval stopping and log its
+per-hop sufficiency score:
+
+```bash
+python scripts/run_experiment.py --method dual_stopping \
+  --enable_evidence_critic --evidence_critic_threshold 0.65 --max_examples 200 --seed 42
+```
+
+For Qwen models, dual stopping uses `TextIteratorStreamer` and a stopping
+criterion so callbacks can interrupt decoding. Token counts are measured from
+the streamed prefix. Azure runs remain API-driven and cannot interrupt a
+provider-side completion.
+
 ### 4. Evaluate Results
 
 ```bash
