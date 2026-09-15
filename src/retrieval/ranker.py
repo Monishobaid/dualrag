@@ -107,7 +107,9 @@ class ParagraphRanker:
             combined = self.dense_weight * norm(dense_scores) + (1 - self.dense_weight) * norm(bm25_scores)
 
         top_k = min(top_k, len(paragraphs))
-        top_indices = np.argsort(combined)[::-1][:top_k]
+        # Stable descending sort keeps dataset order for exact ties (e.g. a
+        # lexical query with no overlapping terms), making runs reproducible.
+        top_indices = np.argsort(-combined, kind='stable')[:top_k]
         results = []
         for idx in top_indices:
             item = {'paragraph': paragraphs[int(idx)], 'score': float(combined[idx]), 'index': int(idx),
