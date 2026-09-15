@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Any, Optional, Set
 import numpy as np
+import re
 from src.retrieval.embedder import Embedder
 from src.retrieval.index import ParagraphIndex, build_paragraph_embeddings, EmbeddingCache
 from src.utils.text import compute_jaccard_similarity
@@ -10,7 +11,9 @@ from src.utils.text import compute_jaccard_similarity
 class ParagraphRanker:
     """Ranks paragraphs for retrieval."""
     
-    def __init__(self, embedder: Embedder, cache: Optional[EmbeddingCache] = None):
+    def __init__(self, embedder: Embedder, cache: Optional[EmbeddingCache] = None,
+                 retrieval_mode: str = "dense", dense_weight: float = 0.5,
+                 bm25_k1: float = 1.5, bm25_b: float = 0.75):
         """
         Initialize ranker.
         
@@ -20,6 +23,39 @@ class ParagraphRanker:
         """
         self.embedder = embedder
         self.cache = cache
+        if retrieval_mode not in {"dense", "bm25", "hybrid"}:
+            raise ValueError("retrieval_mode must be dense, bm25, or hybrid")
+        self.retrieval_mode = retrieval_mode
+        self.dense_weight = float(np.clip(dense_weight, 0.0, 1.0))
+        self.bm25_k1 = bm25_k1
+        self.bm25_b = bm25_b
+
+    @staticmethod
+    def _tokens(text: str) -> List[str]:
+        """Small dependency-free tokenizer suitable for HotpotQA titles/text."""
+        return re.findall(r"[a-z0-9]+", text.lower())
+
+    def _bm25_scores(self, query: str, paragraphs: List[Dict[str, Any]]) -> np.ndarray:
+        docs = [self._tokens(p.get("title", "") + " " + p.get("text", "")) for p in paragraphs]
+        q_tokens = set(self._tokens(query))
+        n = len(docs)
+        if not n or not q_tokens:
+            return np.zeros(n, dtype=np.float32)
+        lengths = np.asarray([len(d) for d in docs], dtype=np.float32)
+        avgdl = float(lengths.mean()) or 1.0
+        df = {term: sum(term in d for d in docs) for term in q_tokens}
+        scores = np.zeros(n, dtype=np.float32)
+        for i, doc in enumerate(docs):
+            tf = {}
+            for token in doc:
+                if token in q_tokens:
+                    tf[token] = tf.get(token, 0) + 1
+            for term, freq in tf.items():
+                # BM25+ style IDF with a non-negative floor for common terms.
+                idf = max(0.0, np.log((n - df[term] + 0.5) / (df[term] + 0.5) + 1.0))
+                denom = freq + self.bm25_k1 * (1 - self.bm25_b + self.bm25_b * lengths[i] / avgdl)
+                scores[i] += idf * (freq * (self.bm25_k1 + 1) / denom)
+        return scores
     
     def rank(
         self,
@@ -50,19 +86,37 @@ class ParagraphRanker:
         if not paragraphs:
             return []
         
-        # Build embeddings for paragraphs
-        para_embeddings = build_paragraph_embeddings(
-            paragraphs,
-            self.embedder,
-            cache=self.cache
-        )
-        
-        # Encode query
-        query_embedding = self.embedder.encode_query(query)
-        
-        # Build index and search
-        index = ParagraphIndex(paragraphs, para_embeddings)
-        results = index.search(query_embedding, top_k=top_k)
+        dense_scores = None
+        if self.retrieval_mode in {"dense", "hybrid"}:
+            para_embeddings = build_paragraph_embeddings(paragraphs, self.embedder, cache=self.cache)
+            query_embedding = self.embedder.encode_query(query)
+            dense_scores = np.dot(para_embeddings, query_embedding)
+        bm25_scores = None
+        if self.retrieval_mode in {"bm25", "hybrid"}:
+            bm25_scores = self._bm25_scores(query, paragraphs)
+
+        if self.retrieval_mode == "dense":
+            combined = dense_scores
+        elif self.retrieval_mode == "bm25":
+            combined = bm25_scores
+        else:
+            # Normalize each ranker to [0, 1] per query before interpolation.
+            def norm(x):
+                lo, hi = float(np.min(x)), float(np.max(x))
+                return (x - lo) / (hi - lo) if hi > lo else np.zeros_like(x)
+            combined = self.dense_weight * norm(dense_scores) + (1 - self.dense_weight) * norm(bm25_scores)
+
+        top_k = min(top_k, len(paragraphs))
+        top_indices = np.argsort(combined)[::-1][:top_k]
+        results = []
+        for idx in top_indices:
+            item = {'paragraph': paragraphs[int(idx)], 'score': float(combined[idx]), 'index': int(idx),
+                    'retrieval_mode': self.retrieval_mode}
+            if dense_scores is not None:
+                item['dense_score'] = float(dense_scores[idx])
+            if bm25_scores is not None:
+                item['bm25_score'] = float(bm25_scores[idx])
+            results.append(item)
         
         return results
     

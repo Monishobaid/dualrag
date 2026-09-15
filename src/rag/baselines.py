@@ -54,6 +54,14 @@ BASELINE_METHODS = {
     "dual_stopping": get_dual_stopping_baseline
 }
 
+def get_oracle_evidence_baseline(base_config: RAGConfig) -> RAGConfig:
+    """Diagnostic baseline: generation receives gold supporting paragraphs."""
+    config = RAGConfig(**base_config.to_dict())
+    config.method = "oracle_evidence"
+    config.enable_reasoning_stop = False
+    config.enable_retrieval_stop = False
+    return config
+
 
 def get_baseline(method: str, base_config: RAGConfig) -> RAGConfig:
     """
@@ -69,6 +77,8 @@ def get_baseline(method: str, base_config: RAGConfig) -> RAGConfig:
     Raises:
         ValueError: If method is unknown
     """
+    if method == "oracle_evidence":
+        return get_oracle_evidence_baseline(base_config)
     if method not in BASELINE_METHODS:
         raise ValueError(f"Unknown baseline method: {method}. Must be one of {list(BASELINE_METHODS.keys())}")
     
