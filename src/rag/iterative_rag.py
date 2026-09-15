@@ -410,19 +410,23 @@ class IterativeRAG:
             parsed = extract_json_from_text(generated_text)
         
         if parsed:
-            answer = parsed.get('answer', '')
-            followup_query = parsed.get('followup_query', '')
+            answer = str(parsed.get('answer') or '').strip()
+            followup_query = str(parsed.get('followup_query') or '').strip()
             try:
                 confidence = max(0.0, min(1.0, float(parsed.get('confidence', 0.5))))
             except (TypeError, ValueError):
                 confidence = 0.0
-            raw_evidence_flag = parsed.get('has_enough_evidence', True)
+            # Missing evidence metadata must be conservative: malformed or
+            # partial JSON should not be allowed to trigger retrieval stop.
+            raw_evidence_flag = parsed.get('has_enough_evidence', False)
             if isinstance(raw_evidence_flag, str):
                 has_enough_evidence = raw_evidence_flag.strip().lower() in {'true', '1', 'yes'}
             else:
                 has_enough_evidence = bool(raw_evidence_flag)
             supporting_quotes = parsed.get('supporting_quotes', [])
-            reasoning = parsed.get('reasoning', '')
+            if not isinstance(supporting_quotes, list):
+                supporting_quotes = []
+            reasoning = str(parsed.get('reasoning') or '')
 
         else:
             # Fallback: JSON parsing failed

@@ -167,6 +167,14 @@ def run_single_experiment(args, method, base_run_id):
         json.dump(predictions, f, indent=2)
     
     eval_metrics = evaluate_predictions(predictions, gold_answers)
+    # Failed examples are incorrect for benchmark denominators. The runner
+    # continues after per-example errors, so do not silently score only the
+    # successful subset.
+    if failed_examples and len(loader):
+        success_fraction = len(predictions) / len(loader)
+        eval_metrics['em'] *= success_fraction
+        eval_metrics['f1'] *= success_fraction
+        eval_metrics['num_examples'] = len(loader)
     traces = read_jsonl(str(output_path / 'traces.jsonl'))
     trace_metrics = aggregate_trace_metrics(traces)
     final_metrics = {**eval_metrics, **trace_metrics,
