@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 # HotpotQA dataset URLs
 DATASET_URLS = {
-    'dev': 'http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_distractor_v1.json',
-    'train': 'http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_train_v1.1.json'
+    'dev': 'https://huggingface.co/datasets/namlh2004/hotpotqa/resolve/main/hotpot_dev_distractor_v1.json?download=true',
+    'train': 'https://huggingface.co/datasets/namlh2004/hotpotqa/resolve/main/hotpot_train_v1.1.json?download=true'
 }
 
 DATA_DIR = Path('data/hotpotqa')
