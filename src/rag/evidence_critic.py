@@ -9,7 +9,7 @@ in benchmarks where training a learned stop model is not yet practical.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 
 _STOPWORDS = {
@@ -50,7 +50,7 @@ class EvidenceSufficiencyCritic:
         question: str,
         answer: str,
         evidence: List[Dict[str, Any]],
-        supporting_quotes: Iterable[str] | None = None,
+        supporting_quotes: Optional[Iterable[str]] = None,
     ) -> Dict[str, Any]:
         answer = (answer or "").strip()
         evidence_text = self._evidence_text(evidence)
