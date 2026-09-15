@@ -131,6 +131,8 @@ class QwenModel:
         max_new_tokens: int = 256,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        stop_strings: Optional[list] = None,
+        response_format: Optional[dict] = None,
     ) -> tuple:
         """
         Generate text and return token count.
@@ -172,6 +174,11 @@ class QwenModel:
             outputs[0][input_length:],
             skip_special_tokens=True
         )
+
+        if stop_strings:
+            for stop_str in stop_strings:
+                if stop_str in generated_text:
+                    generated_text = generated_text.split(stop_str)[0]
         
         return generated_text, num_tokens_generated
     
