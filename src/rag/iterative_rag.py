@@ -175,6 +175,9 @@ class IterativeRAG:
             print(f"  - Reasoning: {hop_result.get('reasoning', 'N/A')}")
             print(f"  - Confidence: {hop_result['confidence']:.2f}")
             print(f"  - Has evidence: {'✅ Yes' if hop_result.get('has_enough_evidence') else '❌ No'}")
+            if hop_result.get('evidence_critic') is not None:
+                critic = hop_result['evidence_critic']
+                print(f"  - Evidence critic: {critic['score']:.2f} ({critic['reason']})")
             if hop_result.get('supporting_quotes'):
                 print(f"  - Supporting quotes:")
                 for q in hop_result['supporting_quotes']:
