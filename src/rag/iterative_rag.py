@@ -346,7 +346,7 @@ class IterativeRAG:
                 prompt=prompt,
                 temperature=self.config.temperature if self.config else 0.7,
                 text_generator=self.text_generator,
-                stop_strings=["\n\n", "```"], # Aggressive stop removed so JSON can naturally complete
+                stop_strings=["```"],
                 max_new_tokens=self.config.max_new_tokens if self.config else 512
             )
             
@@ -364,7 +364,7 @@ class IterativeRAG:
                 prompt=prompt,
                 system_message=JSON_SYSTEM_PROMPT,
                 max_new_tokens=self.config.max_new_tokens if self.config else 512,
-                stop_strings=["\n\n", "```"], # Aggressive stop at JSON close removed to not break parsing
+                stop_strings=["```"],
                 temperature=self.config.temperature if self.config else 0.7,
                 response_format={"type": "json_object"}
             )

@@ -100,7 +100,10 @@ class TextGenerator:
                 prompt=prompt,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature if attempt == 0 else 0.3,  # Lower temp on retry
-                stop_strings=['\n\n', '```'],
+                # A blank line is common inside model preambles and JSON
+                # string values; using it as a stop marker truncates valid
+                # responses before the closing brace.
+                stop_strings=['```'],
                 response_format={"type": "json_object"}
             )
             
