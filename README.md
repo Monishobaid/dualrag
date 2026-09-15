@@ -116,6 +116,24 @@ python scripts/run_experiment.py \
   --seed 42
 ```
 
+#### Hybrid retrieval and oracle diagnostic
+
+The ranker supports dense embeddings (`dense`), lexical BM25 (`bm25`), and a
+per-query normalized interpolation (`hybrid`). For example:
+
+```bash
+python scripts/run_experiment.py --method fixed_hops --retrieval_mode hybrid \
+  --dense_weight 0.5 --max_examples 200 --seed 42
+```
+
+`oracle_evidence` is an evaluation-only baseline. It gives the generator the
+gold HotpotQA supporting-fact paragraphs, measuring answer generation when
+retrieval is perfect. Do not use it for deployment:
+
+```bash
+python scripts/run_experiment.py --method oracle_evidence --max_examples 200 --seed 42
+```
+
 ### 4. Evaluate Results
 
 ```bash
