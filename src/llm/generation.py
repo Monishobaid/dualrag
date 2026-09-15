@@ -1,6 +1,7 @@
 """Text generation utilities."""
 
 import torch
+import threading
 from typing import Optional, List, Dict, Any, Union
 import logging
 from src.llm.qwen import QwenModel
@@ -223,6 +224,21 @@ class ChunkedGenerator:
         Returns:
             Dictionary with 'text', 'early_stop_stats'
         """
+        # Qwen supports true token streaming through Transformers.  This path
+        # lets the callback stop the underlying ``generate`` call before the
+        # configured maximum, so the reported token count reflects work the
+        # model actually performed.  Azure keeps the API based path below.
+        if isinstance(self.model, QwenModel):
+            return self._generate_qwen_streaming(
+                prompt=prompt,
+                max_chunks=max_chunks,
+                temperature=temperature,
+                top_p=0.9,
+                callback=callback,
+                stop_strings=stop_strings,
+                response_format=response_format,
+            )
+
         # Generate complete text first
         if isinstance(self.model, AzureOpenAIModel) and system_message:
             text, num_tokens = self.model.generate_with_token_count(
@@ -303,4 +319,132 @@ class ChunkedGenerator:
             'num_tokens': total_tokens, # The token count is truncated to simulate savings
             'num_chunks': len(chunks),
             'chunks': chunks
+        }
+
+    def _generate_qwen_streaming(
+        self,
+        prompt: str,
+        max_chunks: int,
+        temperature: float,
+        top_p: float,
+        callback=None,
+        stop_strings: Optional[List[str]] = None,
+        response_format: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Generate Qwen output with a real streamer and interrupt flag."""
+        # Imports are local so installations that only use Azure do not need
+        # the optional Transformers streamer classes at module import time.
+        from transformers import TextIteratorStreamer, StoppingCriteria, StoppingCriteriaList
+
+        class _CallbackStop(StoppingCriteria):
+            def __init__(self):
+                self.stop = False
+
+            def __call__(self, input_ids, scores, **kwargs):
+                return self.stop
+
+        model = self.model
+        inputs = model.tokenizer(
+            prompt,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=4096,
+        ).to(model.model.device)
+        stop_flag = _CallbackStop()
+        streamer = TextIteratorStreamer(
+            model.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+            timeout=30.0,
+        )
+        kwargs = {
+            **inputs,
+            "max_new_tokens": max_chunks * self.chunk_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "do_sample": temperature > 0,
+            "pad_token_id": model.tokenizer.pad_token_id,
+            "eos_token_id": model.tokenizer.eos_token_id,
+            "streamer": streamer,
+            "stopping_criteria": StoppingCriteriaList([stop_flag]),
+        }
+        errors = []
+
+        def _run_generate():
+            try:
+                with torch.inference_mode():
+                    model.model.generate(**kwargs)
+            except Exception as exc:  # propagate after streamer drains
+                errors.append(exc)
+
+        worker = threading.Thread(target=_run_generate, daemon=True)
+        worker.start()
+
+        chunks = []
+        cumulative_text = ""
+        last_boundary_tokens = 0
+        emitted_tokens = 0
+        stopped_early = False
+
+        for piece in streamer:
+            cumulative_text += piece
+            current_tokens = len(model.tokenizer.encode(cumulative_text, add_special_tokens=False))
+            # Streamer pieces are normally one or a few tokens.  The loop also
+            # handles a larger piece without losing chunk callbacks.
+            while current_tokens >= last_boundary_tokens + self.chunk_tokens:
+                target_tokens = last_boundary_tokens + self.chunk_tokens
+                chunk_text = cumulative_text if not chunks else cumulative_text
+                chunk = {
+                    "chunk_idx": len(chunks),
+                    "text": chunk_text,
+                    "num_tokens": target_tokens - last_boundary_tokens,
+                    "cumulative_text": cumulative_text.strip(),
+                }
+                chunks.append(chunk)
+                emitted_tokens = target_tokens
+                last_boundary_tokens = target_tokens
+                if callback is not None and not callback(chunk, chunks):
+                    stop_flag.stop = True
+                    stopped_early = True
+                    break
+            if stopped_early:
+                break
+
+        # Ensure a short final completion is visible to the callback.  This is
+        # also the natural EOS case where fewer than one full chunk was emitted.
+        current_tokens = len(model.tokenizer.encode(cumulative_text, add_special_tokens=False))
+        if not stopped_early and current_tokens > last_boundary_tokens:
+            chunk = {
+                "chunk_idx": len(chunks),
+                "text": cumulative_text,
+                "num_tokens": current_tokens - last_boundary_tokens,
+                "cumulative_text": cumulative_text.strip(),
+            }
+            chunks.append(chunk)
+            emitted_tokens = current_tokens
+            if callback is not None and not callback(chunk, chunks):
+                stop_flag.stop = True
+                stopped_early = True
+
+        worker.join(timeout=30.0)
+        if errors:
+            raise errors[0]
+
+        final_text = cumulative_text
+        if stop_strings:
+            for stop_str in stop_strings:
+                if stop_str in final_text:
+                    final_text = final_text.split(stop_str)[0]
+        actual_tokens = len(model.tokenizer.encode(final_text, add_special_tokens=False))
+        return {
+            "text": final_text,
+            "num_tokens": min(actual_tokens, emitted_tokens or actual_tokens),
+            "num_chunks": len(chunks),
+            "chunks": chunks,
+            "early_stop_stats": {
+                "stopped_early": stopped_early,
+                "num_chunks": len(chunks),
+                "convergence_score": 0.0,
+            },
         }
