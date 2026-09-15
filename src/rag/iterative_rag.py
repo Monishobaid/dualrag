@@ -105,9 +105,8 @@ class IterativeRAG:
 
             # Rank paragraphs
             # Fix A: Only exclude titles if candidate pool is large enough
-            should_exclude = True
-            if len(candidate_paragraphs) <= top_k: # If pool is small (e.g. distractor has ~10), don't exclude unless we have excess
-                 should_exclude = False
+            remaining_paragraphs = len(candidate_paragraphs) - len(retrieval_history.all_retrieved_titles)
+            should_exclude = remaining_paragraphs >= top_k
             
             exclude_titles = retrieval_history.all_retrieved_titles if (hop > 1 and should_exclude) else None
             
@@ -117,8 +116,6 @@ class IterativeRAG:
                 top_k=top_k,
                 exclude_titles=exclude_titles
             )
-
-            retrieval_history.add_hop(hop, current_query, results)
 
             # Display retrieved paragraphs
             print(f"📚 Retrieved {len(results)} paragraphs:")
@@ -132,16 +129,18 @@ class IterativeRAG:
 
             # Compute retrieval novelty
             retrieval_novelty = None
-            if prev_results:
+            if hop > 1:
                 retrieval_novelty = self.ranker.compute_retrieval_novelty(
-                    results,
-                    prev_results
+                    current_results=results,
+                    previous_evidence=retrieval_history.get_cumulative_evidence()
                 )
                 jaccard = retrieval_novelty.get('jaccard_overlap', 0)
                 print(f"🔄 Retrieval Novelty:")
                 print(f"  - Jaccard overlap with previous hop: {jaccard:.3f}")
                 print(f"  - {'🆕 High novelty (new info)' if jaccard < 0.5 else '♻️  Low novelty (similar to previous)'}")
                 print()
+                
+            retrieval_history.add_hop(hop, current_query, results)
 
             # Get cumulative evidence
             cumulative_evidence = retrieval_history.get_cumulative_evidence()
@@ -190,6 +189,7 @@ class IterativeRAG:
                 'retrieval_novelty': retrieval_novelty,
                 'answer': hop_result['answer'],
                 'confidence': hop_result['confidence'],
+                'has_enough_evidence': hop_result.get('has_enough_evidence', False),
                 'tokens_generated': hop_result['num_tokens'],
                 'reasoning_stopped': hop_result.get('stopped_early', False),
                 'reasoning_stop_stats': hop_result.get('early_stop_stats', {})
@@ -220,7 +220,8 @@ class IterativeRAG:
             #      print(f"\n✅ Retrieval stopped: {retrieval_stop_reason}")
             #      break
 
-            if self.config and self.config.enable_retrieval_stop and self.retrieval_stopper:
+            should_stop = False
+            if self.config and getattr(self.config, 'enable_retrieval_stop', False) and self.retrieval_stopper:
                 should_stop, reason = self.retrieval_stopper.should_stop(
                     current_hop=hop,
                     hop_history=hop_history,
@@ -251,31 +252,17 @@ class IterativeRAG:
             followup_query = hop_result.get('followup_query', '')
 
             if not followup_query or followup_query.lower() in ['none', 'n/a', '']:
-                # Check if we must continue despite no query
-                if self.config and hop < self.config.min_hops:
-                    logging.info(f"No follow-up query but min_hops ({self.config.min_hops}) not reached. Forcing continuation.")
-                    print(f"\n⚠️  No follow-up query, but min_hops ({self.config.min_hops}) not reached.")
-                    
-                    # Fix D: Do not poison query with answer
-                    followup_query = question 
-                    print(f"➡️  Forcing continuation with original question")
-                
-                # ALSO force continuation if the stopper said we should continue (i.e. we didn't break above)
-                # This handles cases where answer is unstable but model thinks it's done
-                elif self.retrieval_stopper and not should_stop:
-                     logging.info(f"No follow-up query but retrieval stopper says CONTINUE. Forcing continuation.")
-                     print(f"\n⚠️  No follow-up query, but stopping criteria NOT met (e.g. answer unstable).")
-                     
-                     # Fix D: Do not poison query with answer
-                     followup_query = question
-                     print(f"➡️  Forcing continuation with original question")
-
+                if not getattr(self.config, 'enable_retrieval_stop', False):
+                    followup_query = f"{question} {current_ans}".strip()
+                    print(f"\n⚠️ No follow-up query, but fixed-hops mode: adding current answer to question for retrieval diversity")
+                elif hop < self.config.min_hops:
+                    followup_query = f"{question} {current_ans}".strip()
+                    print(f"\n⚠️ No follow-up query, but min_hops not met ({hop} < {self.config.min_hops}): adding current answer to question for retrieval diversity")
                 else:
-                    # No follow-up needed
                     retrieval_stopped = True
-                    retrieval_stop_reason = "no_followup_needed"
-                    logging.info("No follow-up query needed, stopping")
-                    print(f"\n✅ No follow-up query needed, stopping retrieval")
+                    retrieval_stop_reason = "no_followup_query"
+                    logging.info("No follow-up query provided by LLM, stopping")
+                    print(f"\n✅ No follow-up query provided, stopping retrieval")
                     break
 
             print(f"\n➡️  Continuing to next hop with query: {followup_query[:100]}")
@@ -347,8 +334,7 @@ class IterativeRAG:
         prompt = get_multihop_reasoning_prompt(question, evidence, hop)
         
         # Generate with or without reasoning stop
-        # FORCE DISABLE chunked generation to avoid repetition loops
-        enable_reasoning_stop = False # self.config and self.config.enable_reasoning_stop
+        enable_reasoning_stop = self.config and getattr(self.config, 'enable_reasoning_stop', False)
         
         if enable_reasoning_stop:
             # Use chunked generation with early stopping
@@ -357,14 +343,11 @@ class IterativeRAG:
                 prompt=prompt,
                 temperature=self.config.temperature if self.config else 0.7,
                 text_generator=self.text_generator,
-                stop_strings=["\n\n", "```", "}"], # Aggressive stop at JSON close
+                stop_strings=["\n\n", "```"], # Aggressive stop removed so JSON can naturally complete
                 max_new_tokens=512  # FORCE CAP
             )
             
             generated_text = result['text']
-            # If we aggressive stopped at '}', re-append it
-            if generated_text.strip() and not generated_text.strip().endswith('}'):
-                 generated_text += "}"
             
             num_tokens = result['num_tokens']
             stopped_early = result['early_stop_stats']['stopped_early']
@@ -378,15 +361,12 @@ class IterativeRAG:
                 prompt=prompt,
                 system_message=JSON_SYSTEM_PROMPT,
                 max_new_tokens=512,  # FORCE CAP: Prevent infinite reasoning loops
-                stop_strings=["\n\n", "```", "}"], # Aggressive stop at JSON close
+                stop_strings=["\n\n", "```"], # Aggressive stop at JSON close removed to not break parsing
                 temperature=self.config.temperature if self.config else 0.7,
                 response_format={"type": "json_object"}
             )
             
             generated_text = result['text']
-            # If we aggressive stopped at '}', re-append it
-            if generated_text.strip() and not generated_text.strip().endswith('}'):
-                 generated_text += "}"
             
             num_tokens = result['num_tokens']
             stopped_early = False
@@ -398,8 +378,24 @@ class IterativeRAG:
         # If stopped early due to reasoning convergence, use the converged answer
         if stopped_early and 'final_answer' in result and result['final_answer']:
             logging.info(f"Using converged answer from reasoning stop: {result['final_answer']}")
+            
+            extracted_answer = result['final_answer']
+            if self.text_generator:
+                try:
+                    from src.llm.prompts import get_answer_extraction_prompt
+                    extraction_prompt = get_answer_extraction_prompt(result['final_answer'])
+                    extraction_result = self.text_generator.generate(
+                        prompt=extraction_prompt,
+                        max_new_tokens=50,
+                        temperature=0.1
+                    )
+                    extracted_answer = extraction_result['text'].strip().split('\n')[0].strip()
+                    logging.info(f"Normalized converged answer via LLM to: {extracted_answer}")
+                except Exception as e:
+                    logging.warning(f"Answer extraction failed, using raw: {e}")
+
             parsed = {
-                "answer": result['final_answer'],
+                "answer": extracted_answer,
                 "has_enough_evidence": True,
                 "confidence": 0.9,
                 "followup_query": "",
@@ -434,19 +430,9 @@ class IterativeRAG:
         # Retrieval Drift Prevention
         trivial_answers = {"yes", "no", "true", "false", "none", "n/a", "not enough information", "i cannot answer"}
         
-        # If the model didn't give a followup query, check if we should verify
-        if not followup_query:
-            # Avoid verifying trivial/short answers which leads to drift
-            if answer.lower() in trivial_answers or len(answer) < 4:
-                 logging.info(f"Answer '{answer}' is trivial/short. Defaulting followup to original question.")
-                 followup_query = question
-            else:
-                 # Standard verification
-                 followup_query = "" # Let the outer loop decide (it usually does 'evidence for X')
-                 
         # If followup query is exactly the same as the current question, it means the model is stuck
         if followup_query.strip().lower() == question.strip().lower():
-             logging.warning("Follow-up query is identical to the current question. Clearing it to force outer loop fallback.")
+             logging.warning("Follow-up query is identical to the current question. Clearing it to force stop.")
              followup_query = ""
              
         # Grounding Check (Guard B)

@@ -139,7 +139,7 @@ def log_experiment_end(logger: logging.Logger, stats: dict) -> None:
     logger.info("="*80)
     logger.info(f"Total examples: {stats.get('total_examples', 0)}")
     logger.info(f"Avg hops: {stats.get('avg_hops', 0):.2f}")
-    logger.info(f"Avg tokens: {stats.get('avg_tokens', 0):.1f}")
+    logger.info(f"Avg tokens: {stats.get('avg_tokens_generated', 0):.1f}")
     logger.info(f"EM: {stats.get('em', 0):.3f}")
     logger.info(f"F1: {stats.get('f1', 0):.3f}")
     logger.info("="*80)

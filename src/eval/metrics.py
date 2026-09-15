@@ -32,11 +32,11 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         'avg_hops': np.mean(hops_taken),
         'median_hops': np.median(hops_taken),
         'std_hops': np.std(hops_taken),
-        'avg_tokens': np.mean(total_tokens),
+        'avg_tokens_generated': np.mean(total_tokens),
         'median_tokens': np.median(total_tokens),
         'std_tokens': np.std(total_tokens),
-        'reasoning_early_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
-        'retrieval_early_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
+        'reasoning_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
+        'retrieval_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
     }
     
     # Hop distribution

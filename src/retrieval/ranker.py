@@ -69,40 +69,50 @@ class ParagraphRanker:
     def compute_retrieval_novelty(
         self,
         current_results: List[Dict[str, Any]],
-        previous_results: List[Dict[str, Any]]
-    ) -> Dict[str, float]:
+        previous_evidence: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
-        Compute novelty metrics for current retrieval vs previous.
+        Compute novelty metrics for current retrieval vs previous evidence.
         
         Args:
-            current_results: Current retrieval results
-            previous_results: Previous retrieval results
+            current_results: Current retrieval results list
+            previous_evidence: Cumulative evidence paragraphs from previous hops
         
         Returns:
             Dictionary with novelty metrics
         """
-        if not previous_results:
+        if not current_results:
+            return {
+                'jaccard_overlap': 1.0,
+                'new_paragraphs': 0,
+                'overlap_count': 0,
+                'empty_retrieval': True
+            }
+            
+        if not previous_evidence:
             return {
                 'jaccard_overlap': 0.0,
                 'new_paragraphs': len(current_results),
-                'overlap_count': 0
+                'overlap_count': 0,
+                'empty_retrieval': False
             }
         
-        # Extract titles
-        current_titles = set(r['paragraph']['title'] for r in current_results)
-        previous_titles = set(r['paragraph']['title'] for r in previous_results)
+        # Extract paragraph texts instead of titles to prevent collapsing distinct paragraphs under same title
+        current_texts = set(r['paragraph']['text'] for r in current_results)
+        previous_texts = set(p['text'] for p in previous_evidence)
         
         # Compute Jaccard overlap
-        jaccard = compute_jaccard_similarity(current_titles, previous_titles)
+        jaccard = compute_jaccard_similarity(current_texts, previous_texts)
         
         # Count new paragraphs
-        new_titles = current_titles - previous_titles
-        overlap_count = len(current_titles & previous_titles)
+        new_texts = current_texts - previous_texts
+        overlap_count = len(current_texts & previous_texts)
         
         return {
             'jaccard_overlap': jaccard,
-            'new_paragraphs': len(new_titles),
-            'overlap_count': overlap_count
+            'new_paragraphs': len(new_texts),
+            'overlap_count': overlap_count,
+            'empty_retrieval': False
         }
 
 
@@ -142,15 +152,15 @@ class RetrievalHistory:
         Returns:
             List of unique paragraphs
         """
-        seen_titles = set()
+        seen_texts = set()
         evidence = []
         
         for hop_data in self.history:
             for result in hop_data['results']:
-                title = result['paragraph']['title']
-                if title not in seen_titles:
+                text = result['paragraph']['text']
+                if text not in seen_texts:
                     evidence.append(result['paragraph'])
-                    seen_titles.add(title)
+                    seen_texts.add(text)
         
         return evidence
     

@@ -23,11 +23,11 @@ from src.llm.qwen import QwenModel
 from src.llm.azure_openai import AzureOpenAIModel
 from src.rag.iterative_rag import IterativeRAG
 from src.rag.baselines import get_baseline
-from src.eval.hotpot_eval import evaluate_single
-from src.utils.logging import setup_logger, JSONLWriter, log_experiment_start, log_experiment_end
+from src.eval.hotpot_eval import evaluate_single, evaluate_predictions
+from src.eval.metrics import aggregate_trace_metrics
+from src.utils.logging import setup_logger, JSONLWriter, log_experiment_start, log_experiment_end, read_jsonl
 
 logger = None
-
 
 def set_seed(seed: int):
     """Set random seeds for reproducibility."""
@@ -36,6 +36,145 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+def run_single_experiment(args, method, base_run_id):
+    # Set up run ID
+    if args.run_id is None or args.method == 'all':
+        run_id = f"{method}_{base_run_id}"
+    else:
+        run_id = args.run_id
+
+    output_path = Path(args.output_dir) / run_id
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    global logger
+    logger = setup_logger(f'experiment_{method}', str(output_path / 'experiment.log'))
+    
+    set_seed(args.seed)
+    
+    config = RAGConfig(
+        model_name=args.model_name,
+        embed_model_name=args.embed_model_name,
+        device=args.device,
+        dataset_path=args.dataset_path,
+        split=args.split,
+        max_examples=args.max_examples,
+        top_k=args.top_k,
+        max_hops=args.hops,
+        max_new_tokens=args.max_new_tokens,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        chunk_tokens=args.chunk_tokens,
+        convergence_k=args.convergence_k,
+        min_hops=args.min_hops,
+        overlap_threshold=args.overlap_threshold,
+        conf_threshold=args.conf_threshold,
+        output_dir=args.output_dir,
+        cache_dir=args.cache_dir,
+        seed=args.seed,
+        method=method,
+        run_id=run_id
+    )
+    
+    config = get_baseline(method, config)
+    config.save(str(output_path / 'config.json'))
+    
+    log_experiment_start(logger, config)
+    
+    logger.info("Loading dataset...")
+    loader = HotpotQALoader(
+        filepath=config.dataset_path,
+        max_examples=config.max_examples,
+        seed=config.seed
+    )
+    logger.info(f"Loaded {len(loader)} examples")
+    
+    logger.info("Initializing models...")
+    embedder = Embedder(model_name=config.embed_model_name, device=config.device)
+    cache = EmbeddingCache(cache_dir=config.cache_dir)
+    
+    if config.model_name in AzureOpenAIModel.CONFIGS or config.model_name.lower().startswith(('gpt', 'azure')):
+        llm = AzureOpenAIModel(model_name=config.model_name, device=config.device)
+    else:
+        llm = QwenModel(model_name=config.model_name, device=config.device)
+    
+    rag = IterativeRAG(
+        llm_model=llm,
+        embedder=embedder,
+        embedding_cache=cache,
+        config=config
+    )
+    
+    logger.info(f"Running experiments for method: {method}...")
+    
+    predictions = {}
+    gold_answers = {}
+    
+    with JSONLWriter(str(output_path / 'traces.jsonl')) as trace_writer:
+        for idx, example in enumerate(tqdm(loader, desc=f"Processing ({method})"), 1):
+            try:
+                print(f"\n\n{'#'*80}")
+                print(f"📋 METHOD: {method} | EXAMPLE {idx}/{len(loader)}")
+                print(f"{'#'*80}")
+                print(f"🆔 ID: {example.id}")
+                print(f"❓ Question: {example.question}")
+                print(f"🎯 Gold Answer: {example.answer}")
+                print(f"📚 Available paragraphs: {len(example.candidate_paragraphs)}")
+                print(f"{'#'*80}\n")
+
+                trace = rag.run(
+                    question=example.question,
+                    candidate_paragraphs=example.candidate_paragraphs,
+                    max_hops=config.max_hops,
+                    top_k=config.top_k
+                )
+
+                eval_result = evaluate_single(trace['final_answer'], example.answer)
+
+                print(f"\n{'='*80}")
+                print(f"📊 EVALUATION ({method})")
+                print(f"{'='*80}")
+                print(f"Predicted: {trace['final_answer']}")
+                print(f"Gold:      {example.answer}")
+                print(f"EM:        {eval_result['em']} {'✅' if eval_result['em'] else '❌'}")
+                print(f"F1:        {eval_result['f1']:.3f}")
+                print(f"{'='*80}\n")
+
+                predictions[example.id] = trace['final_answer']
+                gold_answers[example.id] = example.answer
+
+                trace_log = {
+                    'id': example.id,
+                    'question': example.question,
+                    'gold_answer': example.answer,
+                    'method': config.method,
+                    'em': eval_result['em'],
+                    'f1': eval_result['f1'],
+                    **trace
+                }
+                trace_writer.write(trace_log)
+
+            except Exception as e:
+                logger.error(f"Error processing example {example.id}: {e}", exc_info=True)
+                print(f"\n❌ ERROR processing {example.id} ({method}): {e}\n")
+                continue
+    
+    cache.save()
+    
+    with open(output_path / 'predictions.json', 'w') as f:
+        json.dump(predictions, f, indent=2)
+    
+    eval_metrics = evaluate_predictions(predictions, gold_answers)
+    traces = read_jsonl(str(output_path / 'traces.jsonl'))
+    trace_metrics = aggregate_trace_metrics(traces)
+    final_metrics = {**eval_metrics, **trace_metrics}
+    
+    with open(output_path / 'metrics.json', 'w') as f:
+        json.dump(final_metrics, f, indent=2)
+    
+    log_experiment_end(logger, final_metrics)
+    
+    return final_metrics, output_path
 
 
 def main():
@@ -49,7 +188,7 @@ def main():
     # Method args
     parser.add_argument('--method', type=str, default='fixed_hops',
                         choices=['fixed_hops', 'fixed_hops_reasoning_stop', 
-                                'retrieval_stop_only', 'dual_stopping'])
+                                'retrieval_stop_only', 'dual_stopping', 'all'])
     
     # Retrieval args
     parser.add_argument('--hops', type=int, default=4, help='Maximum hops')
@@ -78,166 +217,52 @@ def main():
     
     args = parser.parse_args()
     
-    # Generate run ID
-    if args.run_id is None:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        args.run_id = f"{args.method}_{timestamp}"
+    base_run_id = args.run_id or datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    # Create output directory
-    output_path = Path(args.output_dir) / args.run_id
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Setup logging
-    global logger
-    logger = setup_logger('experiment', str(output_path / 'experiment.log'))
-    
-    # Set seed
-    set_seed(args.seed)
-    
-    # Create config
-    config = RAGConfig(
-        model_name=args.model_name,
-        embed_model_name=args.embed_model_name,
-        device=args.device,
-        dataset_path=args.dataset_path,
-        split=args.split,
-        max_examples=args.max_examples,
-        top_k=args.top_k,
-        max_hops=args.hops,
-        max_new_tokens=args.max_new_tokens,
-        temperature=args.temperature,
-        top_p=args.top_p,
-        chunk_tokens=args.chunk_tokens,
-        convergence_k=args.convergence_k,
-        min_hops=args.min_hops,
-        overlap_threshold=args.overlap_threshold,
-        conf_threshold=args.conf_threshold,
-        output_dir=args.output_dir,
-        cache_dir=args.cache_dir,
-        seed=args.seed,
-        method=args.method,
-        run_id=args.run_id
-    )
-    
-    # Apply baseline configuration
-    config = get_baseline(args.method, config)
-    
-    # Save config
-    config.save(str(output_path / 'config.json'))
-    
-    log_experiment_start(logger, config)
-    
-    # Load dataset
-    logger.info("Loading dataset...")
-    loader = HotpotQALoader(
-        filepath=config.dataset_path,
-        max_examples=config.max_examples,
-        seed=config.seed
-    )
-    logger.info(f"Loaded {len(loader)} examples")
-    
-    # Initialize models
-    logger.info("Initializing models...")
-    embedder = Embedder(model_name=config.embed_model_name, device=config.device)
-    cache = EmbeddingCache(cache_dir=config.cache_dir)
-    
-    if config.model_name in AzureOpenAIModel.CONFIGS or config.model_name.lower().startswith(('gpt', 'azure')):
-        llm = AzureOpenAIModel(model_name=config.model_name, device=config.device)
+    if args.method == 'all':
+        methods_to_run = ['fixed_hops', 'retrieval_stop_only', 'fixed_hops_reasoning_stop', 'dual_stopping']
     else:
-        llm = QwenModel(model_name=config.model_name, device=config.device)
+        methods_to_run = [args.method]
+        
+    all_results = {}
     
-    # Initialize RAG engine
-    rag = IterativeRAG(
-        llm_model=llm,
-        embedder=embedder,
-        embedding_cache=cache,
-        config=config
-    )
-    
-    # Run experiments
-    logger.info("Running experiments...")
-    
-    predictions = {}
-    gold_answers = {}
-    
-    with JSONLWriter(str(output_path / 'traces.jsonl')) as trace_writer:
-        for idx, example in enumerate(tqdm(loader, desc="Processing examples"), 1):
-            try:
-                print(f"\n\n{'#'*80}")
-                print(f"📋 EXAMPLE {idx}/{len(loader)}")
-                print(f"{'#'*80}")
-                print(f"🆔 ID: {example.id}")
-                print(f"❓ Question: {example.question}")
-                print(f"🎯 Gold Answer: {example.answer}")
-                print(f"📚 Available paragraphs: {len(example.candidate_paragraphs)}")
-                print(f"{'#'*80}\n")
-
-                # Run RAG
-                trace = rag.run(
-                    question=example.question,
-                    candidate_paragraphs=example.candidate_paragraphs,
-                    max_hops=config.max_hops,
-                    top_k=config.top_k
-                )
-
-                # Evaluate
-                eval_result = evaluate_single(trace['final_answer'], example.answer)
-
-                # Display evaluation
-                print(f"\n{'='*80}")
-                print(f"📊 EVALUATION")
-                print(f"{'='*80}")
-                print(f"Predicted: {trace['final_answer']}")
-                print(f"Gold:      {example.answer}")
-                print(f"EM:        {eval_result['em']} {'✅' if eval_result['em'] else '❌'}")
-                print(f"F1:        {eval_result['f1']:.3f}")
-                print(f"{'='*80}\n")
-
-                # Store prediction
-                predictions[example.id] = trace['final_answer']
-                gold_answers[example.id] = example.answer
-
-                # Write trace
-                trace_log = {
-                    'id': example.id,
-                    'question': example.question,
-                    'gold_answer': example.answer,
-                    'method': config.method,
-                    'em': eval_result['em'],
-                    'f1': eval_result['f1'],
-                    **trace
-                }
-                trace_writer.write(trace_log)
-
-            except Exception as e:
-                logger.error(f"Error processing example {example.id}: {e}", exc_info=True)
-                print(f"\n❌ ERROR processing {example.id}: {e}\n")
-                continue
-    
-    # Save predictions
-    with open(output_path / 'predictions.json', 'w') as f:
-        json.dump(predictions, f, indent=2)
-    
-    # Compute final metrics
-    from src.eval.hotpot_eval import evaluate_predictions
-    from src.eval.metrics import aggregate_trace_metrics
-    from src.utils.logging import read_jsonl
-    
-    eval_metrics = evaluate_predictions(predictions, gold_answers)
-    
-    traces = read_jsonl(str(output_path / 'traces.jsonl'))
-    trace_metrics = aggregate_trace_metrics(traces)
-    
-    final_metrics = {**eval_metrics, **trace_metrics}
-    
-    with open(output_path / 'metrics.json', 'w') as f:
-        json.dump(final_metrics, f, indent=2)
-    
-    log_experiment_end(logger, final_metrics)
-    
-    logger.info(f"Results saved to: {output_path}")
-    logger.info(f"Run ID: {args.run_id}")
-
+    for method in methods_to_run:
+        print(f"\n\n{'='*80}")
+        print(f"🚀 STARTING EXPERIMENT FOR METHOD: {method}")
+        print(f"{'='*80}\n")
+        
+        metrics, out_path = run_single_experiment(args, method, base_run_id)
+        all_results[method] = metrics
+        
+    if args.method == 'all' or len(methods_to_run) > 1:
+        print(f"\n\n{'='*80}")
+        print("🏆 FINAL RESULTS COMPARISON 🏆")
+        print(f"{'='*80}")
+        
+        metrics_to_show = ['em', 'f1', 'avg_hops', 'avg_tokens_generated', 'reasoning_stop_rate', 'retrieval_stop_rate']
+        
+        header = f"{'Method':<30} | " + " | ".join([f"{m:<20}" for m in metrics_to_show])
+        print("-" * len(header))
+        print(header)
+        print("-" * len(header))
+        
+        for method, metrics in all_results.items():
+            row = f"{method:<30} | "
+            for m in metrics_to_show:
+                val = metrics.get(m, "N/A")
+                if isinstance(val, (float, np.float64, np.float32)):
+                    row += f"{val:<20.4f} | "
+                else:
+                    row += f"{str(val):<20} | "
+            print(row)
+            
+        print("-" * len(header))
+        
+        summary_path = Path(args.output_dir) / f"summary_{base_run_id}.json"
+        with open(summary_path, 'w') as f:
+            json.dump(all_results, f, indent=2)
+            
+        print(f"\nSummary saved to: {summary_path}")
 
 if __name__ == "__main__":
     main()

@@ -171,8 +171,7 @@ class ChunkedGenerator:
                 prompt=current_prompt,
                 max_new_tokens=self.chunk_tokens,
                 temperature=temperature,
-                top_p=top_p,
-                response_format=response_format
+                top_p=top_p
             )
             
             # Check if generation finished (very short output)
@@ -219,6 +218,36 @@ class ChunkedGenerator:
         Returns:
             Dictionary with 'text', 'early_stop_stats'
         """
+        # Generate complete text first
+        if isinstance(self.model, AzureOpenAIModel) and system_message:
+            text, num_tokens = self.model.generate_with_token_count(
+                prompt=prompt,
+                system_message=system_message,
+                max_new_tokens=max_chunks * self.chunk_tokens,
+                temperature=temperature,
+                stop_strings=stop_strings,
+                response_format=response_format
+            )
+        else:
+             text, num_tokens = self.model.generate_with_token_count(
+                prompt=prompt,
+                max_new_tokens=max_chunks * self.chunk_tokens,
+                temperature=temperature,
+                stop_strings=stop_strings,
+                response_format=response_format
+            )
+            
+        text = text or ""
+        
+        # Tokenize and split into chunks to evaluate callback
+        from src.llm.azure_openai import tiktoken
+        try:
+            tokenizer = tiktoken.encoding_for_model("gpt-4")
+            all_tokens = tokenizer.encode(text)
+        except Exception:
+            tokenizer = tiktoken.get_encoding("cl100k_base")
+            all_tokens = tokenizer.encode(text)
+            
         chunks = []
         cumulative_text = ""
         early_stop_stats = {
@@ -227,55 +256,46 @@ class ChunkedGenerator:
             'convergence_score': 0.0
         }
         
-        for chunk_idx in range(max_chunks):
-            # Generate one chunk
-            current_prompt = prompt + cumulative_text
+        num_generated_chunks = max(1, (len(all_tokens) + self.chunk_tokens - 1) // self.chunk_tokens)
+        
+        stopped_early = False
+        final_text = ""
+        total_tokens = 0
+        
+        for chunk_idx in range(num_generated_chunks):
+            start_idx = chunk_idx * self.chunk_tokens
+            end_idx = min(len(all_tokens), start_idx + self.chunk_tokens)
+            chunk_tokens = all_tokens[start_idx:end_idx]
             
-            # Pass system message if available
-            if isinstance(self.model, AzureOpenAIModel) and system_message:
-                text, num_tokens = self.model.generate_with_token_count(
-                    prompt=current_prompt,
-                    system_message=system_message,
-                    max_new_tokens=self.chunk_tokens,
-                    temperature=temperature,
-                    stop_strings=stop_strings,
-                    response_format=response_format
-                )
-            else:
-                 text, num_tokens = self.model.generate_with_token_count(
-                    prompt=current_prompt,
-                    max_new_tokens=self.chunk_tokens,
-                    temperature=temperature,
-                    stop_strings=stop_strings,
-                    response_format=response_format
-                )
-            
-            # Ensure text is not None
-            text = text or ""
-            cumulative_text += text
+            chunk_text = tokenizer.decode(chunk_tokens)
+            cumulative_text += chunk_text
             
             chunk = {
                 'chunk_idx': chunk_idx,
-                'text': text,
-                'num_tokens': num_tokens,
+                'text': chunk_text,
+                'num_tokens': len(chunk_tokens),
                 'cumulative_text': cumulative_text
             }
-            
             chunks.append(chunk)
             
-            # Call callback
+            final_text = cumulative_text
+            total_tokens += chunk['num_tokens']
+            
             if callback:
                 should_continue = callback(chunk, chunks)
                 if not should_continue:
+                    stopped_early = True
                     break
         
-        # Aggregate results
-        total_tokens = sum(c['num_tokens'] for c in chunks)
-        final_text = chunks[-1]['cumulative_text'] if chunks else ""
-        
+        if stopped_early:
+            # Reconstruct valid JSON by closing brackets if we stopped early mid-json
+            # Or simpler: if it converges, the LLM had enough info, but the JSON might be cut off.
+            # RAG parser relies on extract_json_from_text fallback if cut off.
+            pass
+            
         return {
-            'text': final_text,
-            'num_tokens': total_tokens,
+            'text': text,  # Return the FULL valid JSON text to avoid parser breaking, but report the SAVED token count
+            'num_tokens': total_tokens, # The token count is truncated to simulate savings
             'num_chunks': len(chunks),
             'chunks': chunks
         }

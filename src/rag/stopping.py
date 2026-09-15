@@ -41,7 +41,7 @@ class RetrievalStopper:
         self,
         current_hop: int,
         hop_history: List[Dict[str, Any]],
-        retrieval_novelty: Optional[Dict[str, float]] = None
+        retrieval_novelty: Optional[Dict[str, Any]] = None
     ) -> tuple:
         """
         Determine if retrieval should stop.
@@ -54,20 +54,42 @@ class RetrievalStopper:
         Returns:
             (should_stop: bool, reason: str)
         """
-        if not hop_history[-1].get('has_enough_evidence', True):
-            return False, "insufficient_evidence"
+        if current_hop < self.min_hops:
+            return False, f"min_hops_not_met_({current_hop}<{self.min_hops})"
+            
+        # Check explicit empty retrieval
+        if retrieval_novelty and retrieval_novelty.get('empty_retrieval', False):
+            reason = "empty_retrieval"
+            logging.info(f"Retrieval stopping at hop {current_hop}: {reason}")
+            return True, reason
 
-        # If we have high confidence and enough evidence, we can stop immediately
+        # Determine answer stability
+        stable = False
+        if len(hop_history) >= self.answer_stability_window:
+            recent_answers = [
+                normalize_text(h['answer']) for h in hop_history[-self.answer_stability_window:]
+            ]
+            if len(set(recent_answers)) == 1 and recent_answers[0] != "":
+                stable = True
+
         latest_confidence = hop_history[-1].get('confidence', 0.0)
+        has_enough_evidence = hop_history[-1].get('has_enough_evidence', False)
         high_confidence = latest_confidence >= self.conf_threshold
-        
-        if high_confidence:
-            reason = f"high_confidence_hop_{current_hop}"
+
+        # Strict combinatorial stopping Check
+        if stable and high_confidence and has_enough_evidence:
+            reason = f"stable_answer_high_conf_hop_{current_hop}"
             logging.info(f"Retrieval stopping at hop {current_hop}: {reason}")
             return True, reason
         
-        # We didn't stop, which means confidence was not high enough
-        reason = f"low_conf_{latest_confidence:.2f}"
+        # Check novelty if confidence/stability fails but we are repeating the same docs
+        if retrieval_novelty and retrieval_novelty.get('jaccard_overlap', 0.0) >= self.overlap_threshold:
+             reason = f"low_novelty_overlap_{retrieval_novelty['jaccard_overlap']:.2f}"
+             logging.info(f"Retrieval stopping at hop {current_hop}: {reason}")
+             return True, reason
+        
+        # We didn't stop, which means condition not met
+        reason = f"continue_stable={stable}_conf={latest_confidence:.2f}_ev={has_enough_evidence}"
         return False, reason
     
     def get_stopping_stats(
