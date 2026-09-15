@@ -23,6 +23,8 @@ class RAGConfig:
     # Retrieval configuration
     top_k: int = 5  # Number of paragraphs to retrieve per hop
     max_hops: int = 4  # Maximum number of retrieval hops
+    retrieval_mode: str = "dense"  # dense, bm25, or hybrid
+    dense_weight: float = 0.5  # Hybrid dense interpolation weight
     
     # Generation configuration
     max_new_tokens: int = 256  # Max tokens per hop generation
@@ -39,6 +41,11 @@ class RAGConfig:
     min_hops: int = 2  # Minimum hops before considering stopping
     overlap_threshold: float = 0.7  # Jaccard overlap threshold for low novelty
     conf_threshold: float = 0.6  # Confidence threshold for stopping
+
+    # Model-free evidence critic.  Disabled by default for backwards-compatible
+    # baselines; enable it for critic-controlled retrieval experiments.
+    enable_evidence_critic: bool = False
+    evidence_critic_threshold: float = 0.65
     
     # Cost calculation
     cost_alpha: float = 1000.0  # Weight for hop cost

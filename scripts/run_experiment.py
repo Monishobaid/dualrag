@@ -61,6 +61,8 @@ def run_single_experiment(args, method, base_run_id):
         max_examples=args.max_examples,
         top_k=args.top_k,
         max_hops=args.hops,
+        retrieval_mode=args.retrieval_mode,
+        dense_weight=args.dense_weight,
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
@@ -69,6 +71,8 @@ def run_single_experiment(args, method, base_run_id):
         min_hops=args.min_hops,
         overlap_threshold=args.overlap_threshold,
         conf_threshold=args.conf_threshold,
+        enable_evidence_critic=args.enable_evidence_critic,
+        evidence_critic_threshold=args.evidence_critic_threshold,
         output_dir=args.output_dir,
         cache_dir=args.cache_dir,
         seed=args.seed,
@@ -123,12 +127,25 @@ def run_single_experiment(args, method, base_run_id):
                 print(f"📚 Available paragraphs: {len(example.candidate_paragraphs)}")
                 print(f"{'#'*80}\n")
 
+                # Oracle diagnostic: pass only gold supporting-fact titles to
+                # generation. This isolates answer-generation quality from
+                # retrieval errors and must never be used for a deployable run.
+                run_paragraphs = example.candidate_paragraphs
+                run_hops = config.max_hops
+                run_top_k = config.top_k
+                if method == 'oracle_evidence':
+                    gold_titles = {fact[0] for fact in example.supporting_facts if fact}
+                    run_paragraphs = [p for p in example.candidate_paragraphs if p['title'] in gold_titles]
+                    run_hops, run_top_k = 1, max(1, len(run_paragraphs))
                 trace = rag.run(
                     question=example.question,
-                    candidate_paragraphs=example.candidate_paragraphs,
-                    max_hops=config.max_hops,
-                    top_k=config.top_k
+                    candidate_paragraphs=run_paragraphs,
+                    max_hops=run_hops,
+                    top_k=run_top_k
                 )
+                if method == 'oracle_evidence':
+                    trace['oracle_evidence'] = True
+                    trace['oracle_titles'] = sorted({p['title'] for p in run_paragraphs})
 
                 eval_result = evaluate_single(trace['final_answer'], example.answer)
 
@@ -201,14 +218,22 @@ def main():
     # Method args
     parser.add_argument('--method', type=str, default='fixed_hops',
                         choices=['fixed_hops', 'fixed_hops_reasoning_stop', 
-                                'retrieval_stop_only', 'dual_stopping', 'all'])
+                                'retrieval_stop_only', 'dual_stopping', 'oracle_evidence', 'all'])
     
     # Retrieval args
     parser.add_argument('--hops', type=int, default=4, help='Maximum hops')
     parser.add_argument('--top_k', type=int, default=5, help='Paragraphs per hop')
+    parser.add_argument('--retrieval_mode', type=str, default='dense', choices=['dense', 'bm25', 'hybrid'],
+                        help='Retriever: dense embeddings, lexical BM25, or normalized hybrid')
+    parser.add_argument('--dense_weight', type=float, default=0.5,
+                        help='Dense weight for hybrid retrieval (0-1)')
     parser.add_argument('--min_hops', type=int, default=2, help='Minimum hops for retrieval stop')
     parser.add_argument('--overlap_threshold', type=float, default=0.7)
     parser.add_argument('--conf_threshold', type=float, default=0.6)
+    parser.add_argument('--enable_evidence_critic', action='store_true',
+                        help='Require model-free evidence sufficiency before retrieval stopping')
+    parser.add_argument('--evidence_critic_threshold', type=float, default=0.65,
+                        help='Evidence critic score threshold in [0, 1]')
     
     # Generation args
     parser.add_argument('--max_new_tokens', type=int, default=256)

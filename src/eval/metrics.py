@@ -38,6 +38,20 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         'reasoning_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
         'retrieval_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
     }
+
+    critic_hops = [
+        h.get('evidence_critic')
+        for t in traces for h in t.get('hops', [])
+        if h.get('evidence_critic') is not None
+    ]
+    if critic_hops:
+        metrics['evidence_critic_hops'] = len(critic_hops)
+        metrics['evidence_critic_sufficient_rate'] = sum(
+            bool(c.get('sufficient', False)) for c in critic_hops
+        ) / len(critic_hops)
+        metrics['evidence_critic_avg_score'] = float(np.mean([
+            float(c.get('score', 0.0)) for c in critic_hops
+        ]))
     
     # Hop distribution
     hop_counts = {}

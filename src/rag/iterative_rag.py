@@ -7,6 +7,7 @@ from src.llm.generation import TextGenerator, ChunkedGenerator
 from src.llm.early_stop import generate_with_reasoning_stop
 from src.retrieval.ranker import ParagraphRanker, RetrievalHistory
 from src.rag.stopping import RetrievalStopper
+from src.rag.evidence_critic import EvidenceSufficiencyCritic
 from src.utils.text import extract_json_from_text, normalize_text
 from src.llm.qwen import QwenModel
 from src.llm.azure_openai import AzureOpenAIModel
@@ -45,6 +46,16 @@ class IterativeRAG:
             chunk_tokens=config.chunk_tokens if config else 64
         )
         self.ranker = ParagraphRanker(embedder, cache=embedding_cache)
+        self.evidence_critic = None
+        if config and getattr(config, 'enable_evidence_critic', False):
+            self.evidence_critic = EvidenceSufficiencyCritic(
+                threshold=getattr(config, 'evidence_critic_threshold', 0.65)
+            )
+        if config:
+            self.ranker = ParagraphRanker(
+                embedder, cache=embedding_cache,
+                retrieval_mode=getattr(config, 'retrieval_mode', 'dense'),
+                dense_weight=getattr(config, 'dense_weight', 0.5))
         
         # Stopping mechanisms
         if config:
@@ -194,6 +205,8 @@ class IterativeRAG:
                 'reasoning_stopped': hop_result.get('stopped_early', False),
                 'reasoning_stop_stats': hop_result.get('early_stop_stats', {})
             }
+            if 'evidence_critic' in hop_result:
+                hop_data['evidence_critic'] = hop_result['evidence_critic']
 
             hop_history.append(hop_data)
             
@@ -505,6 +518,20 @@ class IterativeRAG:
                      has_enough_evidence = False
                      # Let outer loop handle fallback query naturally
 
+        # Optional model-free evidence critic.  It runs after the existing
+        # grounding guard and can only make stopping more conservative.
+        evidence_critic = None
+        if self.evidence_critic is not None:
+            evidence_critic = self.evidence_critic.evaluate(
+                question=question,
+                answer=answer,
+                evidence=evidence,
+                supporting_quotes=supporting_quotes,
+            )
+            if not evidence_critic['sufficient']:
+                has_enough_evidence = False
+                confidence = min(confidence, evidence_critic['score'])
+
         return {
             'answer': answer,
             'followup_query': followup_query,
@@ -515,5 +542,6 @@ class IterativeRAG:
             'num_tokens': num_tokens,
             'stopped_early': stopped_early,
             'early_stop_stats': early_stop_stats,
+            'evidence_critic': evidence_critic,
             'raw_output': generated_text
         }
