@@ -109,7 +109,9 @@ dmypy.json
 *~
 
 # Project specific
-data/
+# Keep source modules under src/data tracked; ignore only experiment datasets.
+/data/
+data/hotpotqa/
 outputs/
 runs/
 *.json

@@ -14,7 +14,7 @@ This system implements iterative multi-hop retrieval-augmented generation with t
 - ✅ Iterative multi-hop RAG with up to H hops (configurable)
 - ✅ Four baseline configurations for ablation studies
 - ✅ Open-weight LLM: Qwen 3B (no paid APIs)
-- ✅ Simulated retrieval using sentence embeddings + FAISS
+- ✅ Simulated retrieval using sentence embeddings (the current ranker uses NumPy cosine scoring)
 - ✅ Comprehensive evaluation (EM/F1, avg hops, avg tokens, cost metrics)
 - ✅ Detailed JSONL trace logs for analysis
 - ✅ Embedding cache for fast experimentation
@@ -292,13 +292,12 @@ python scripts/run_experiment.py \
   --top_k 5
 ```
 
-## Expected Performance
+## Performance claims
 
-On HotpotQA dev subset (distractor):
-- **EM**: 20-40% (depends on example subset and stopping thresholds)
-- **F1**: 30-50%
-- **Token reduction**: 30-60% with dual stopping vs. fixed_hops
-- **Hop reduction**: ~1-2 hops on average with retrieval stopping
+Results depend on the model, dataset subset, prompt, and stopping thresholds. The
+repository does not ship a validated benchmark, so accuracy and token-reduction
+claims must be measured from matched runs on the same examples. A one-example GPU
+smoke test is only a wiring check, not a performance result.
 
 ## Citation
 

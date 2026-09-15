@@ -82,8 +82,13 @@ class RetrievalStopper:
             logging.info(f"Retrieval stopping at hop {current_hop}: {reason}")
             return True, reason
         
-        # Check novelty if confidence/stability fails but we are repeating the same docs
-        if retrieval_novelty and retrieval_novelty.get('jaccard_overlap', 0.0) >= self.overlap_threshold:
+        # Repeated documents alone are not evidence that the answer is correct.
+        # Require an answer that is both supported and above the confidence
+        # threshold before using low novelty as a stopping signal.
+        if (retrieval_novelty
+                and retrieval_novelty.get('jaccard_overlap', 0.0) >= self.overlap_threshold
+                and high_confidence
+                and has_enough_evidence):
              reason = f"low_novelty_overlap_{retrieval_novelty['jaccard_overlap']:.2f}"
              logging.info(f"Retrieval stopping at hop {current_hop}: {reason}")
              return True, reason

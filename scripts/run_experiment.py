@@ -109,6 +109,7 @@ def run_single_experiment(args, method, base_run_id):
     
     predictions = {}
     gold_answers = {}
+    failed_examples = []
     
     with JSONLWriter(str(output_path / 'traces.jsonl')) as trace_writer:
         for idx, example in enumerate(tqdm(loader, desc=f"Processing ({method})"), 1):
@@ -157,6 +158,7 @@ def run_single_experiment(args, method, base_run_id):
             except Exception as e:
                 logger.error(f"Error processing example {example.id}: {e}", exc_info=True)
                 print(f"\n❌ ERROR processing {example.id} ({method}): {e}\n")
+                failed_examples.append({'id': example.id, 'error': str(e)})
                 continue
     
     cache.save()
@@ -167,7 +169,10 @@ def run_single_experiment(args, method, base_run_id):
     eval_metrics = evaluate_predictions(predictions, gold_answers)
     traces = read_jsonl(str(output_path / 'traces.jsonl'))
     trace_metrics = aggregate_trace_metrics(traces)
-    final_metrics = {**eval_metrics, **trace_metrics}
+    final_metrics = {**eval_metrics, **trace_metrics,
+                     'num_requested_examples': len(loader),
+                     'num_failed_examples': len(failed_examples),
+                     'failed_example_ids': [item['id'] for item in failed_examples]}
     
     with open(output_path / 'metrics.json', 'w') as f:
         json.dump(final_metrics, f, indent=2)

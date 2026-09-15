@@ -269,7 +269,10 @@ class IterativeRAG:
             current_query = followup_query
         
         # === FINAL RESULTS ===
-        final_answer = hop_history[-1]['answer'] if hop_history else ""
+        # A later hop can be less reliable than an earlier one. Prefer the
+        # highest-confidence non-empty answer and fall back to the final hop
+        # only when no usable answer was produced.
+        final_answer = best_answer or (hop_history[-1]['answer'] if hop_history else "")
         
         # Fallback to best answer if final is empty/failed but we had a good one earlier
         # Logic: If final answer is empty or very short (<2 chars), AND we have a best answer
@@ -344,7 +347,7 @@ class IterativeRAG:
                 temperature=self.config.temperature if self.config else 0.7,
                 text_generator=self.text_generator,
                 stop_strings=["\n\n", "```"], # Aggressive stop removed so JSON can naturally complete
-                max_new_tokens=512  # FORCE CAP
+                max_new_tokens=self.config.max_new_tokens if self.config else 512
             )
             
             generated_text = result['text']
@@ -360,7 +363,7 @@ class IterativeRAG:
             result = self.text_generator.generate(
                 prompt=prompt,
                 system_message=JSON_SYSTEM_PROMPT,
-                max_new_tokens=512,  # FORCE CAP: Prevent infinite reasoning loops
+                max_new_tokens=self.config.max_new_tokens if self.config else 512,
                 stop_strings=["\n\n", "```"], # Aggressive stop at JSON close removed to not break parsing
                 temperature=self.config.temperature if self.config else 0.7,
                 response_format={"type": "json_object"}
@@ -409,8 +412,15 @@ class IterativeRAG:
         if parsed:
             answer = parsed.get('answer', '')
             followup_query = parsed.get('followup_query', '')
-            confidence = float(parsed.get('confidence', 0.5))
-            has_enough_evidence = bool(parsed.get('has_enough_evidence', True))
+            try:
+                confidence = max(0.0, min(1.0, float(parsed.get('confidence', 0.5))))
+            except (TypeError, ValueError):
+                confidence = 0.0
+            raw_evidence_flag = parsed.get('has_enough_evidence', True)
+            if isinstance(raw_evidence_flag, str):
+                has_enough_evidence = raw_evidence_flag.strip().lower() in {'true', '1', 'yes'}
+            else:
+                has_enough_evidence = bool(raw_evidence_flag)
             supporting_quotes = parsed.get('supporting_quotes', [])
             reasoning = parsed.get('reasoning', '')
 

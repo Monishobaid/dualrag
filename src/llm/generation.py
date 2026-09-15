@@ -60,7 +60,9 @@ class TextGenerator:
                 prompt=prompt,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
-                top_p=top_p
+                top_p=top_p,
+                stop_strings=stop_strings,
+                response_format=response_format
             )
         
         # Apply stop strings
