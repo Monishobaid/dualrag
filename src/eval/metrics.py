@@ -38,6 +38,10 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         'reasoning_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
         'retrieval_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
     }
+    recalls = [t.get('supporting_title_recall') for t in traces
+               if t.get('supporting_title_recall') is not None]
+    if recalls:
+        metrics['supporting_title_recall'] = float(np.mean(recalls))
 
     critic_hops = [
         h.get('evidence_critic')

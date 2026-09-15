@@ -146,6 +146,15 @@ def run_single_experiment(args, method, base_run_id):
                 if method == 'oracle_evidence':
                     trace['oracle_evidence'] = True
                     trace['oracle_titles'] = sorted({p['title'] for p in run_paragraphs})
+                gold_titles = {fact[0] for fact in example.supporting_facts if fact}
+                retrieved_titles = {
+                    p.get('title') for hop in trace.get('hops', [])
+                    for p in hop.get('retrieved_paragraphs', []) if p.get('title')
+                }
+                trace['supporting_title_recall'] = (
+                    len(gold_titles & retrieved_titles) / len(gold_titles)
+                    if gold_titles else 0.0
+                )
 
                 eval_result = evaluate_single(trace['final_answer'], example.answer)
 
