@@ -257,7 +257,8 @@ def generate_with_reasoning_stop(
         top_p=top_p,
         callback=stopper.check_chunk,
         stop_strings=stop_strings,
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
+        max_new_tokens=max_new_tokens,
     )
 
     # Add stopping stats

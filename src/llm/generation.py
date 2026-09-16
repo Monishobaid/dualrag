@@ -149,6 +149,7 @@ class ChunkedGenerator:
         max_chunks: int = 8,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        max_new_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, str]] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -209,7 +210,8 @@ class ChunkedGenerator:
         top_p: float = 0.9,
         callback = None,
         stop_strings: Optional[List[str]] = None,
-        response_format: Optional[Dict[str, str]] = None
+        response_format: Optional[Dict[str, str]] = None,
+        max_new_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Generate with callback after each chunk for early stopping.
@@ -233,6 +235,7 @@ class ChunkedGenerator:
             return self._generate_qwen_streaming(
                 prompt=prompt,
                 max_chunks=max_chunks,
+                max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 top_p=top_p,
                 callback=callback,
@@ -245,7 +248,7 @@ class ChunkedGenerator:
             text, num_tokens = self.model.generate_with_token_count(
                 prompt=prompt,
                 system_message=system_message,
-                max_new_tokens=max_chunks * self.chunk_tokens,
+                max_new_tokens=max_new_tokens or max_chunks * self.chunk_tokens,
                 temperature=temperature,
                 stop_strings=stop_strings,
                 response_format=response_format
@@ -253,7 +256,7 @@ class ChunkedGenerator:
         else:
              text, num_tokens = self.model.generate_with_token_count(
                 prompt=prompt,
-                max_new_tokens=max_chunks * self.chunk_tokens,
+                max_new_tokens=max_new_tokens or max_chunks * self.chunk_tokens,
                 temperature=temperature,
                 stop_strings=stop_strings,
                 response_format=response_format
@@ -328,6 +331,7 @@ class ChunkedGenerator:
         max_chunks: int,
         temperature: float,
         top_p: float,
+        max_new_tokens: Optional[int] = None,
         callback=None,
         stop_strings: Optional[List[str]] = None,
         response_format: Optional[Dict[str, str]] = None,
@@ -389,7 +393,7 @@ class ChunkedGenerator:
         )
         kwargs = {
             **inputs,
-            "max_new_tokens": max_chunks * self.chunk_tokens,
+            "max_new_tokens": max_new_tokens or max_chunks * self.chunk_tokens,
             "temperature": temperature,
             "top_p": top_p,
             "do_sample": temperature > 0,
