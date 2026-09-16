@@ -26,11 +26,6 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         if any(h.get('reasoning_stopped', False) for h in t['hops'])
     )
     retrieval_stopped = sum(1 for t in traces if t.get('retrieval_stopped', False))
-    parse_failed = sum(
-        1 for t in traces
-        if any(h.get('parse_failed', False) for h in t.get('hops', []))
-    )
-    
     metrics = {
         'num_examples': len(traces),
         'avg_hops': float(np.mean(hops_taken)),
@@ -41,18 +36,7 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         'std_tokens': float(np.std(total_tokens)),
         'reasoning_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
         'retrieval_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
-        'parse_failure_rate': parse_failed / len(traces) if traces else 0.0,
-        'num_parse_failed_examples': parse_failed,
     }
-    latencies = [t.get('latency_seconds') for t in traces
-                 if t.get('latency_seconds') is not None]
-    if latencies:
-        metrics.update({
-            'avg_latency_seconds': float(np.mean(latencies)),
-            'median_latency_seconds': float(np.median(latencies)),
-            'std_latency_seconds': float(np.std(latencies)),
-        })
-
     # Per-example wall-clock latency is recorded by run_experiment.  Keep
     # missing values out of the aggregate so older traces remain readable.
     latencies = [float(t['latency_seconds']) for t in traces
