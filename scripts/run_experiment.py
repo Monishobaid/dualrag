@@ -8,7 +8,6 @@ import sys
 import json
 import random
 import time
-import time
 import numpy as np
 import torch
 from datetime import datetime
@@ -152,14 +151,12 @@ def run_single_experiment(args, method, base_run_id):
                     run_paragraphs = [p for p in example.candidate_paragraphs if p['title'] in gold_titles]
                     run_hops, run_top_k = 1, max(1, len(run_paragraphs))
                 example_start = time.perf_counter()
-                started_at = time.perf_counter()
                 trace = rag.run(
                     question=example.question,
                     candidate_paragraphs=run_paragraphs,
                     max_hops=run_hops,
                     top_k=run_top_k
                 )
-                trace['latency_seconds'] = time.perf_counter() - started_at
                 trace['latency_seconds'] = time.perf_counter() - example_start
                 if method == 'oracle_evidence':
                     trace['oracle_evidence'] = True
