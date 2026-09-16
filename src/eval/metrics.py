@@ -26,6 +26,10 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         if any(h.get('reasoning_stopped', False) for h in t['hops'])
     )
     retrieval_stopped = sum(1 for t in traces if t.get('retrieval_stopped', False))
+    parse_failed = sum(
+        1 for t in traces
+        if any(h.get('parse_failed', False) for h in t.get('hops', []))
+    )
     
     metrics = {
         'num_examples': len(traces),
@@ -37,7 +41,17 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         'std_tokens': float(np.std(total_tokens)),
         'reasoning_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
         'retrieval_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
+        'parse_failure_rate': parse_failed / len(traces) if traces else 0.0,
+        'num_parse_failed_examples': parse_failed,
     }
+    latencies = [t.get('latency_seconds') for t in traces
+                 if t.get('latency_seconds') is not None]
+    if latencies:
+        metrics.update({
+            'avg_latency_seconds': float(np.mean(latencies)),
+            'median_latency_seconds': float(np.median(latencies)),
+            'std_latency_seconds': float(np.std(latencies)),
+        })
 
     # Per-example wall-clock latency is recorded by run_experiment.  Keep
     # missing values out of the aggregate so older traces remain readable.
@@ -92,6 +106,15 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
         metrics['evidence_critic_avg_score'] = float(np.mean([
             float(c.get('score', 0.0)) for c in critic_hops
         ]))
+
+    # Keep the complete stop-reason distribution for auditability.  A method
+    # may stop because of convergence, evidence sufficiency, missing follow-up
+    # query, or simply reaching the hop budget.
+    stop_reasons = {}
+    for trace in traces:
+        reason = trace.get('retrieval_stop_reason') or 'unknown'
+        stop_reasons[reason] = stop_reasons.get(reason, 0) + 1
+    metrics['stop_reason_counts'] = stop_reasons
     
     # Stop reasons are kept as distributions instead of one opaque rate so
     # benchmark reports can distinguish max-hop termination, convergence,

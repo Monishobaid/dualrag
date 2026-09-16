@@ -79,7 +79,8 @@ class HotpotQAExample:
 class HotpotQALoader:
     """Loader for HotpotQA dataset."""
     
-    def __init__(self, filepath: str, max_examples: Optional[int] = None, seed: int = 42):
+    def __init__(self, filepath: str, max_examples: Optional[int] = None, seed: int = 42,
+                 example_ids: Optional[List[str]] = None):
         """
         Initialize loader.
         
@@ -91,6 +92,9 @@ class HotpotQALoader:
         self.filepath = Path(filepath)
         self.max_examples = max_examples
         self.seed = seed
+        # Optional frozen evaluation IDs.  When supplied, examples are loaded
+        # in exactly this order and no fresh random sample is drawn.
+        self.example_ids = list(example_ids) if example_ids is not None else None
         self.examples = []
         
         if not self.filepath.exists():
@@ -107,8 +111,14 @@ class HotpotQALoader:
         if isinstance(data, dict):
             data = list(data.values())
         
-        # Sample if needed
-        if self.max_examples and len(data) > self.max_examples:
+        if self.example_ids is not None:
+            by_id = {item.get('_id'): item for item in data}
+            missing = [item_id for item_id in self.example_ids if item_id not in by_id]
+            if missing:
+                raise KeyError(f"Frozen example IDs missing from dataset: {missing[:5]}")
+            data = [by_id[item_id] for item_id in self.example_ids]
+        # Sample if needed (only when no explicit frozen IDs were supplied).
+        elif self.max_examples and len(data) > self.max_examples:
             random.seed(self.seed)
             data = random.sample(data, self.max_examples)
         
