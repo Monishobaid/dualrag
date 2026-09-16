@@ -222,7 +222,11 @@ def run_single_experiment(args, method, base_run_id):
     final_metrics = {**eval_metrics, **trace_metrics,
                      'num_requested_examples': len(loader),
                      'num_failed_examples': len(failed_examples),
-                     'failed_example_ids': [item['id'] for item in failed_examples]}
+                     'failed_example_ids': [item['id'] for item in failed_examples],
+                     # Persist the exact evaluation cohort alongside metrics so
+                     # every method can be audited against the same IDs.
+                     'example_ids_file': args.example_ids_file,
+                     'example_ids': [example.id for example in loader]}
     
     with open(output_path / 'metrics.json', 'w') as f:
         json.dump(final_metrics, f, indent=2)
