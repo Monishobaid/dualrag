@@ -170,7 +170,17 @@ def run_single_experiment(args, method, base_run_id):
                     len(gold_titles & retrieved_titles) / len(gold_titles)
                     if gold_titles else 0.0
                 )
-                trace['supporting_fact_recall_at_k'] = trace['supporting_title_recall']
+                first_hop_titles = {
+                    p.get('title') for p in (trace.get('hops') or [{}])[0].get(
+                        'retrieved_paragraphs', []) if p.get('title')
+                }
+                # Recall@k is conventionally measured on the first ranked
+                # list.  Keep cumulative title recall separately for
+                # multihop diagnostics.
+                trace['supporting_fact_recall_at_k'] = (
+                    len(gold_titles & first_hop_titles) / len(gold_titles)
+                    if gold_titles else 0.0
+                )
 
                 eval_result = evaluate_single(trace['final_answer'], example.answer)
 

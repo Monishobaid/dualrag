@@ -70,12 +70,13 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
     recalls = [t.get('supporting_title_recall') for t in traces
                if t.get('supporting_title_recall') is not None]
     if recalls:
-        recall_at_k = float(np.mean(recalls))
-        # Retrieval traces contain the union of paragraphs returned at each
-        # hop, with k equal to the configured per-hop top_k.  Preserve the
-        # historical key and expose the benchmark-facing name explicitly.
-        metrics['supporting_title_recall'] = recall_at_k
-        metrics['supporting_fact_recall_at_k'] = recall_at_k
+        # Cumulative recall over all retrieved hops, retained for multihop
+        # diagnostics and backwards compatibility.
+        metrics['supporting_title_recall'] = float(np.mean(recalls))
+    first_hop_recalls = [t.get('supporting_fact_recall_at_k') for t in traces
+                         if t.get('supporting_fact_recall_at_k') is not None]
+    if first_hop_recalls:
+        metrics['supporting_fact_recall_at_k'] = float(np.mean(first_hop_recalls))
 
     critic_hops = [
         h.get('evidence_critic')
