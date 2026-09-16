@@ -7,6 +7,8 @@ from pathlib import Path
 import sys
 import json
 import random
+import time
+import time
 import numpy as np
 import torch
 from datetime import datetime
@@ -28,6 +30,16 @@ from src.eval.metrics import aggregate_trace_metrics
 from src.utils.logging import setup_logger, JSONLWriter, log_experiment_start, log_experiment_end, read_jsonl
 
 logger = None
+
+
+def _read_example_ids(path: str):
+    """Read a frozen ID manifest (JSON list or {'ids': [...]} object)."""
+    with open(path, 'r') as f:
+        payload = json.load(f)
+    ids = payload.get('ids') if isinstance(payload, dict) else payload
+    if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
+        raise ValueError(f"Invalid example ID manifest: {path}")
+    return ids
 
 def set_seed(seed: int):
     """Set random seeds for reproducibility."""
@@ -86,10 +98,12 @@ def run_single_experiment(args, method, base_run_id):
     log_experiment_start(logger, config)
     
     logger.info("Loading dataset...")
+    frozen_ids = _read_example_ids(args.example_ids_file) if args.example_ids_file else None
     loader = HotpotQALoader(
         filepath=config.dataset_path,
-        max_examples=config.max_examples,
-        seed=config.seed
+        max_examples=None if frozen_ids is not None else config.max_examples,
+        seed=config.seed,
+        example_ids=frozen_ids,
     )
     logger.info(f"Loaded {len(loader)} examples")
     
@@ -137,12 +151,16 @@ def run_single_experiment(args, method, base_run_id):
                     gold_titles = {fact[0] for fact in example.supporting_facts if fact}
                     run_paragraphs = [p for p in example.candidate_paragraphs if p['title'] in gold_titles]
                     run_hops, run_top_k = 1, max(1, len(run_paragraphs))
+                example_start = time.perf_counter()
+                started_at = time.perf_counter()
                 trace = rag.run(
                     question=example.question,
                     candidate_paragraphs=run_paragraphs,
                     max_hops=run_hops,
                     top_k=run_top_k
                 )
+                trace['latency_seconds'] = time.perf_counter() - started_at
+                trace['latency_seconds'] = time.perf_counter() - example_start
                 if method == 'oracle_evidence':
                     trace['oracle_evidence'] = True
                     trace['oracle_titles'] = sorted({p['title'] for p in run_paragraphs})
@@ -155,6 +173,7 @@ def run_single_experiment(args, method, base_run_id):
                     len(gold_titles & retrieved_titles) / len(gold_titles)
                     if gold_titles else 0.0
                 )
+                trace['supporting_fact_recall_at_k'] = trace['supporting_title_recall']
 
                 eval_result = evaluate_single(trace['final_answer'], example.answer)
 
@@ -223,6 +242,8 @@ def main():
     parser.add_argument('--dataset_path', type=str, default='data/hotpotqa/hotpot_dev_distractor_v1.json')
     parser.add_argument('--split', type=str, default='dev', choices=['dev', 'train'])
     parser.add_argument('--max_examples', type=int, default=None)
+    parser.add_argument('--example_ids_file', type=str, default=None,
+                        help='JSON list (or {"ids": [...]}) fixing the exact evaluation examples')
     
     # Method args
     parser.add_argument('--method', type=str, default='fixed_hops',
@@ -263,6 +284,26 @@ def main():
     parser.add_argument('--run_id', type=str, default=None)
     
     args = parser.parse_args()
+
+    # Create one deterministic manifest and reuse it for every method in this
+    # invocation.  Persisting it makes subsequent reruns auditable and avoids
+    # accidental changes to the dev sample if the source file is reordered.
+    if args.example_ids_file is None and args.max_examples is not None:
+        manifest = Path(args.output_dir) / (
+            f"example_ids_{args.split}_{args.max_examples}_seed{args.seed}.json")
+        if manifest.exists():
+            args.example_ids_file = str(manifest)
+        else:
+            sampled = HotpotQALoader(
+                filepath=args.dataset_path,
+                max_examples=args.max_examples,
+                seed=args.seed,
+            )
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            with open(manifest, 'w') as f:
+                json.dump({'dataset_path': args.dataset_path, 'split': args.split,
+                           'seed': args.seed, 'ids': [ex.id for ex in sampled]}, f, indent=2)
+            args.example_ids_file = str(manifest)
     
     base_run_id = args.run_id or datetime.now().strftime('%Y%m%d_%H%M%S')
     

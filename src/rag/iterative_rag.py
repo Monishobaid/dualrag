@@ -206,7 +206,8 @@ class IterativeRAG:
                 'has_enough_evidence': hop_result.get('has_enough_evidence', False),
                 'tokens_generated': hop_result['num_tokens'],
                 'reasoning_stopped': hop_result.get('stopped_early', False),
-                'reasoning_stop_stats': hop_result.get('early_stop_stats', {})
+                'reasoning_stop_stats': hop_result.get('early_stop_stats', {}),
+                'parse_failed': bool(hop_result.get('parse_failed', False))
             }
             if 'evidence_critic' in hop_result:
                 hop_data['evidence_critic'] = hop_result['evidence_critic']
@@ -546,5 +547,6 @@ class IterativeRAG:
             'stopped_early': stopped_early,
             'early_stop_stats': early_stop_stats,
             'evidence_critic': evidence_critic,
-            'raw_output': generated_text
+            'raw_output': generated_text,
+            'parse_failed': parsed is None
         }

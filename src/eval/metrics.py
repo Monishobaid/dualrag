@@ -29,19 +29,55 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     metrics = {
         'num_examples': len(traces),
-        'avg_hops': np.mean(hops_taken),
-        'median_hops': np.median(hops_taken),
-        'std_hops': np.std(hops_taken),
-        'avg_tokens_generated': np.mean(total_tokens),
-        'median_tokens': np.median(total_tokens),
-        'std_tokens': np.std(total_tokens),
+        'avg_hops': float(np.mean(hops_taken)),
+        'median_hops': float(np.median(hops_taken)),
+        'std_hops': float(np.std(hops_taken)),
+        'avg_tokens_generated': float(np.mean(total_tokens)),
+        'median_tokens': float(np.median(total_tokens)),
+        'std_tokens': float(np.std(total_tokens)),
         'reasoning_stop_rate': reasoning_stopped / len(traces) if traces else 0.0,
         'retrieval_stop_rate': retrieval_stopped / len(traces) if traces else 0.0,
     }
+
+    # Per-example wall-clock latency is recorded by run_experiment.  Keep
+    # missing values out of the aggregate so older traces remain readable.
+    latencies = [float(t['latency_seconds']) for t in traces
+                 if t.get('latency_seconds') is not None]
+    if latencies:
+        metrics.update({
+            'avg_latency_seconds': float(np.mean(latencies)),
+            'median_latency_seconds': float(np.median(latencies)),
+            'std_latency_seconds': float(np.std(latencies)),
+        })
+
+    # A parse failure means the model output could not be interpreted as the
+    # expected JSON response for at least one hop.  This is reported per
+    # example (the unit used for benchmark failure rates), while hop-level
+    # counts are also exposed for diagnosis.
+    parse_failed_examples = sum(
+        1 for t in traces
+        if any(bool(h.get('parse_failed', False)) for h in t.get('hops', []))
+    )
+    parse_failed_hops = sum(
+        1 for t in traces for h in t.get('hops', [])
+        if bool(h.get('parse_failed', False))
+    )
+    total_hops = sum(len(t.get('hops', [])) for t in traces)
+    metrics.update({
+        'num_parse_failed_examples': parse_failed_examples,
+        'parse_failure_rate': parse_failed_examples / len(traces) if traces else 0.0,
+        'num_parse_failed_hops': parse_failed_hops,
+        'parse_failure_hop_rate': parse_failed_hops / total_hops if total_hops else 0.0,
+    })
     recalls = [t.get('supporting_title_recall') for t in traces
                if t.get('supporting_title_recall') is not None]
     if recalls:
-        metrics['supporting_title_recall'] = float(np.mean(recalls))
+        recall_at_k = float(np.mean(recalls))
+        # Retrieval traces contain the union of paragraphs returned at each
+        # hop, with k equal to the configured per-hop top_k.  Preserve the
+        # historical key and expose the benchmark-facing name explicitly.
+        metrics['supporting_title_recall'] = recall_at_k
+        metrics['supporting_fact_recall_at_k'] = recall_at_k
 
     critic_hops = [
         h.get('evidence_critic')
@@ -57,6 +93,22 @@ def aggregate_trace_metrics(traces: List[Dict[str, Any]]) -> Dict[str, Any]:
             float(c.get('score', 0.0)) for c in critic_hops
         ]))
     
+    # Stop reasons are kept as distributions instead of one opaque rate so
+    # benchmark reports can distinguish max-hop termination, convergence,
+    # missing follow-up queries, and critic/controller decisions.
+    retrieval_reasons = {}
+    reasoning_reasons = {}
+    for trace in traces:
+        rreason = trace.get('retrieval_stop_reason') or 'unspecified'
+        retrieval_reasons[rreason] = retrieval_reasons.get(rreason, 0) + 1
+        for hop in trace.get('hops', []):
+            stats = hop.get('reasoning_stop_stats') or {}
+            if stats.get('stopped_early'):
+                reason = stats.get('stop_reason') or 'unspecified'
+                reasoning_reasons[reason] = reasoning_reasons.get(reason, 0) + 1
+    metrics['retrieval_stop_reason_counts'] = retrieval_reasons
+    metrics['reasoning_stop_reason_counts'] = reasoning_reasons
+
     # Hop distribution
     hop_counts = {}
     for h in hops_taken:
