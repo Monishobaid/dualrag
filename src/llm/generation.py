@@ -206,6 +206,7 @@ class ChunkedGenerator:
         system_message: Optional[str] = None,
         max_chunks: int = 8,
         temperature: float = 0.7,
+        top_p: float = 0.9,
         callback = None,
         stop_strings: Optional[List[str]] = None,
         response_format: Optional[Dict[str, str]] = None
@@ -233,7 +234,7 @@ class ChunkedGenerator:
                 prompt=prompt,
                 max_chunks=max_chunks,
                 temperature=temperature,
-                top_p=0.9,
+                top_p=top_p,
                 callback=callback,
                 stop_strings=stop_strings,
                 response_format=response_format,
@@ -343,6 +344,27 @@ class ChunkedGenerator:
             def __call__(self, input_ids, scores, **kwargs):
                 return self.stop
 
+        class _CountingStreamer(TextIteratorStreamer):
+            """Text streamer that counts generated token ids exactly.
+
+            Counting decoded text is unsafe with BPE tokenizers because
+            re-encoding a growing prefix can change token boundaries.  The
+            streamer receives the actual token tensors, so count those while
+            leaving prompt tokens excluded by ``skip_prompt``.
+            """
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.generated_token_count = 0
+
+            def put(self, value):
+                if not getattr(self, "next_tokens_are_prompt", False):
+                    try:
+                        self.generated_token_count += int(value.numel())
+                    except AttributeError:
+                        self.generated_token_count += len(value)
+                return super().put(value)
+
         model = self.model
         inputs = model.tokenizer(
             prompt,
@@ -352,7 +374,7 @@ class ChunkedGenerator:
             max_length=4096,
         ).to(model.model.device)
         stop_flag = _CallbackStop()
-        streamer = TextIteratorStreamer(
+        streamer = _CountingStreamer(
             model.tokenizer,
             skip_prompt=True,
             skip_special_tokens=True,
@@ -384,17 +406,20 @@ class ChunkedGenerator:
         chunks = []
         cumulative_text = ""
         last_boundary_tokens = 0
-        emitted_tokens = 0
         stopped_early = False
+        previous_text_len = 0
 
         for piece in streamer:
             cumulative_text += piece
-            current_tokens = len(model.tokenizer.encode(cumulative_text, add_special_tokens=False))
+            current_tokens = streamer.generated_token_count
             # Streamer pieces are normally one or a few tokens.  The loop also
             # handles a larger piece without losing chunk callbacks.
             while current_tokens >= last_boundary_tokens + self.chunk_tokens:
                 target_tokens = last_boundary_tokens + self.chunk_tokens
-                chunk_text = cumulative_text if not chunks else cumulative_text
+                # Pass only the newly emitted text for this callback.  The
+                # cumulative form remains available for convergence checks.
+                chunk_text = cumulative_text[previous_text_len:]
+                previous_text_len = len(cumulative_text)
                 chunk = {
                     "chunk_idx": len(chunks),
                     "text": chunk_text,
@@ -402,7 +427,6 @@ class ChunkedGenerator:
                     "cumulative_text": cumulative_text.strip(),
                 }
                 chunks.append(chunk)
-                emitted_tokens = target_tokens
                 last_boundary_tokens = target_tokens
                 if callback is not None and not callback(chunk, chunks):
                     stop_flag.stop = True
@@ -413,16 +437,16 @@ class ChunkedGenerator:
 
         # Ensure a short final completion is visible to the callback.  This is
         # also the natural EOS case where fewer than one full chunk was emitted.
-        current_tokens = len(model.tokenizer.encode(cumulative_text, add_special_tokens=False))
+        current_tokens = streamer.generated_token_count
         if not stopped_early and current_tokens > last_boundary_tokens:
             chunk = {
                 "chunk_idx": len(chunks),
-                "text": cumulative_text,
+                "text": cumulative_text[previous_text_len:],
                 "num_tokens": current_tokens - last_boundary_tokens,
                 "cumulative_text": cumulative_text.strip(),
             }
+            previous_text_len = len(cumulative_text)
             chunks.append(chunk)
-            emitted_tokens = current_tokens
             if callback is not None and not callback(chunk, chunks):
                 stop_flag.stop = True
                 stopped_early = True
@@ -436,10 +460,18 @@ class ChunkedGenerator:
             for stop_str in stop_strings:
                 if stop_str in final_text:
                     final_text = final_text.split(stop_str)[0]
-        actual_tokens = len(model.tokenizer.encode(final_text, add_special_tokens=False))
+        # The streamer count is the authoritative number of output ids.  Keep
+        # a tokenizer fallback for unusual streamer implementations.
+        actual_tokens = streamer.generated_token_count
+        if actual_tokens <= 0 and final_text:
+            actual_tokens = len(model.tokenizer.encode(final_text, add_special_tokens=False))
         return {
             "text": final_text,
-            "num_tokens": min(actual_tokens, emitted_tokens or actual_tokens),
+            # Count every token that actually arrived from the streamer.  A
+            # stop callback can race with generation by a token or two; using
+            # the boundary count here understated compute and produced fake
+            # efficiency gains.
+            "num_tokens": actual_tokens,
             "num_chunks": len(chunks),
             "chunks": chunks,
             "early_stop_stats": {

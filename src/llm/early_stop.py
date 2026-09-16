@@ -213,6 +213,7 @@ def generate_with_reasoning_stop(
     max_chunks: int = 8,
     convergence_k: int = 2,
     temperature: float = 0.7,
+    top_p: float = 0.9,
     text_generator = None,
     stopper = None,
     max_new_tokens: int = 512,
@@ -245,13 +246,15 @@ def generate_with_reasoning_stop(
     
     # Calculate chunks needed
     chunk_size = chunked_generator.chunk_tokens
-    calculated_max_chunks = max(1, max_new_tokens // chunk_size)
+    # Ceil so a non-multiple token budget is never silently reduced.
+    calculated_max_chunks = max(1, (max_new_tokens + chunk_size - 1) // chunk_size)
         
     result = chunked_generator.generate_with_callback(
         prompt=prompt,
         system_message=JSON_SYSTEM_PROMPT,
         max_chunks=calculated_max_chunks,
         temperature=temperature,
+        top_p=top_p,
         callback=stopper.check_chunk,
         stop_strings=stop_strings,
         response_format={"type": "json_object"}

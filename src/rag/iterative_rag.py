@@ -362,6 +362,8 @@ class IterativeRAG:
                 chunked_generator=self.chunked_generator,
                 prompt=prompt,
                 temperature=self.config.temperature if self.config else 0.7,
+                top_p=self.config.top_p if self.config else 0.9,
+                convergence_k=self.config.convergence_k if self.config else 2,
                 text_generator=self.text_generator,
                 stop_strings=["```"],
                 max_new_tokens=self.config.max_new_tokens if self.config else 512
@@ -393,6 +395,7 @@ class IterativeRAG:
             early_stop_stats = {}
         
         # Parse JSON response
+        extraction_tokens = 0
         parsed = None
         
         # If stopped early due to reasoning convergence, use the converged answer
@@ -409,6 +412,10 @@ class IterativeRAG:
                         max_new_tokens=50,
                         temperature=0.1
                     )
+                    # This normalization call consumes model tokens too; keep
+                    # it in the hop total for fair efficiency accounting.
+                    extraction_tokens = int(extraction_result.get('num_tokens', 0) or 0)
+                    num_tokens += extraction_tokens
                     extracted_answer = extraction_result['text'].strip().split('\n')[0].strip()
                     logging.info(f"Normalized converged answer via LLM to: {extracted_answer}")
                 except Exception as e:
@@ -544,6 +551,7 @@ class IterativeRAG:
             'supporting_quotes': supporting_quotes,
             'reasoning': reasoning,
             'num_tokens': num_tokens,
+            'extraction_tokens': extraction_tokens,
             'stopped_early': stopped_early,
             'early_stop_stats': early_stop_stats,
             'evidence_critic': evidence_critic,
