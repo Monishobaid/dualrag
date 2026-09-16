@@ -356,13 +356,20 @@ class ChunkedGenerator:
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.generated_token_count = 0
+                self._prompt_seen = False
 
             def put(self, value):
-                if not getattr(self, "next_tokens_are_prompt", False):
+                # GenerationMixin sends one prefill tensor before generated
+                # ids.  Track it ourselves instead of depending on the
+                # private ``next_tokens_are_prompt`` attribute, which varies
+                # across Transformers releases.
+                if self._prompt_seen:
                     try:
                         self.generated_token_count += int(value.numel())
                     except AttributeError:
                         self.generated_token_count += len(value)
+                else:
+                    self._prompt_seen = True
                 return super().put(value)
 
         model = self.model
