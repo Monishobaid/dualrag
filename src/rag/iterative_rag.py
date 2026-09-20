@@ -398,40 +398,13 @@ class IterativeRAG:
         extraction_tokens = 0
         parsed = None
         
-        # If stopped early due to reasoning convergence, use the converged answer
-        if stopped_early and 'final_answer' in result and result['final_answer']:
-            logging.info(f"Using converged answer from reasoning stop: {result['final_answer']}")
-            
-            extracted_answer = result['final_answer']
-            if self.text_generator:
-                try:
-                    from src.llm.prompts import get_answer_extraction_prompt
-                    extraction_prompt = get_answer_extraction_prompt(result['final_answer'])
-                    extraction_result = self.text_generator.generate(
-                        prompt=extraction_prompt,
-                        max_new_tokens=50,
-                        temperature=0.1
-                    )
-                    # This normalization call consumes model tokens too; keep
-                    # it in the hop total for fair efficiency accounting.
-                    extraction_tokens = int(extraction_result.get('num_tokens', 0) or 0)
-                    num_tokens += extraction_tokens
-                    extracted_answer = extraction_result['text'].strip().split('\n')[0].strip()
-                    logging.info(f"Normalized converged answer via LLM to: {extracted_answer}")
-                except Exception as e:
-                    logging.warning(f"Answer extraction failed, using raw: {e}")
-
-            parsed = {
-                "answer": extracted_answer,
-                "has_enough_evidence": True,
-                "confidence": 0.9,
-                "followup_query": "",
-                "supporting_quotes": [],
-                "reasoning": "Answer converged during chunked generation."
-            }
-        else:
-            # Normal parsing
-            parsed = extract_json_from_text(generated_text)
+        # A stopped response follows exactly the same parsing, grounding, and
+        # evidence-critic path as an unstopped response.  In particular, do
+        # not manufacture confidence/evidence metadata for a heuristic stop.
+        parsed = extract_json_from_text(generated_text)
+        if stopped_early:
+            from src.utils.text import extract_complete_json_from_text
+            parsed = extract_complete_json_from_text(generated_text)
         
         if parsed:
             answer = str(parsed.get('answer') or '').strip()

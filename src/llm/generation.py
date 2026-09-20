@@ -57,8 +57,11 @@ class TextGenerator:
             )
         else:
             # Default path (Qwen)
+            qwen_prompt = prompt
+            if system_message:
+                qwen_prompt = f"{system_message}\n\n{prompt}"
             text, num_tokens = self.model.generate_with_token_count(
-                prompt=prompt,
+                prompt=qwen_prompt,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 top_p=top_p,
@@ -234,6 +237,7 @@ class ChunkedGenerator:
         if isinstance(self.model, QwenModel):
             return self._generate_qwen_streaming(
                 prompt=prompt,
+                system_message=system_message,
                 max_chunks=max_chunks,
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
@@ -335,6 +339,7 @@ class ChunkedGenerator:
         callback=None,
         stop_strings: Optional[List[str]] = None,
         response_format: Optional[Dict[str, str]] = None,
+        system_message: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Generate Qwen output with a real streamer and interrupt flag."""
         # Imports are local so installations that only use Azure do not need
@@ -377,6 +382,11 @@ class ChunkedGenerator:
                 return super().put(value)
 
         model = self.model
+        # Qwen's wrapper accepts a single prompt.  Preserve the system
+        # instruction used by the ordinary path instead of silently dropping
+        # it on the streaming path.
+        if system_message:
+            prompt = f"{system_message}\n\n{prompt}"
         inputs = model.tokenizer(
             prompt,
             return_tensors="pt",

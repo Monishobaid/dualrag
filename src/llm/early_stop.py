@@ -2,7 +2,11 @@
 
 from typing import List, Optional, Dict, Any
 import logging
-from src.utils.text import normalize_text, extract_answer_from_text
+from src.utils.text import (
+    normalize_text,
+    extract_answer_from_text,
+    extract_complete_json_from_text,
+)
 from src.llm.prompts import get_answer_extraction_prompt
 
 
@@ -57,19 +61,16 @@ class AnswerConvergenceStopper:
         Returns:
             Extracted answer
         """
-        # 1. Try JSON extraction
-        import json
         import re
-        
-        # Look for "current_hypothesis": "..." pattern first
-        hyp_match = re.search(r'"current_hypothesis"\s*:\s*"([^"]+)"', text)
-        if hyp_match:
-            return hyp_match.group(1).strip()
-            
-        # Look for "answer": "..." pattern
-        json_match = re.search(r'"answer"\s*:\s*"([^"]+)"', text)
-        if json_match:
-            return json_match.group(1).strip()
+
+        # Only a complete JSON object is eligible for convergence.  Prefer the
+        # final answer field; current_hypothesis is deliberately intermediate.
+        parsed = extract_complete_json_from_text(text)
+        if parsed is not None:
+            answer = parsed.get('answer')
+            if isinstance(answer, str) and answer.strip():
+                return answer.strip()
+            return ""
             
         # 2. Look for explicit answer statements in thought
         patterns = [
@@ -90,8 +91,6 @@ class AnswerConvergenceStopper:
                 
                 if val and len(val) < 200: # Sanity check length
                      return val
-                     
-        return ""
                      
         return ""
     
@@ -142,9 +141,12 @@ class AnswerConvergenceStopper:
         
         cumulative_text = chunk['cumulative_text']
         
-        # Extract answer from cumulative text
-        # Use heuristic extraction to avoid extra LLM calls
-        answer = self.extract_answer_heuristic(cumulative_text)
+        # Extract only a complete answer.  A field seen in a truncated JSON
+        # prefix is not evidence that generation has converged.
+        parsed = extract_complete_json_from_text(cumulative_text)
+        answer = ""
+        if parsed is not None and isinstance(parsed.get('answer'), str):
+            answer = parsed['answer'].strip()
         answer_norm = normalize_text(answer)
         
         self.extracted_answers.append({
@@ -153,23 +155,17 @@ class AnswerConvergenceStopper:
             'answer_normalized': answer_norm
         })
         
-        # CRITICAL FIX: Only consider stopping if JSON structure is complete
-        # We look for </JSON> or <END_JSON> OR balanced braces (ignoring trailing text)
-        has_tags = ("</JSON>" in cumulative_text or "<END_JSON>" in cumulative_text)
-        # Check if braces are balanced. This handles nested objects correctly too.
-        has_balanced_braces = (cumulative_text.count("{") > 0 and cumulative_text.count("{") == cumulative_text.count("}"))
-        
-        is_complete = (has_tags or has_balanced_braces)
-        
-        if not is_complete:
+        # The strict parser handles quoted braces, nested objects, and trailing
+        # model text; brace counting does not.
+        if parsed is None:
             return True # Continue generation until complete
         
         # Check convergence
-        if len(self.extracted_answers) >= self.convergence_k + 1:
-            # Check last k+1 answers
-            recent_answers = [a['answer_normalized'] for a in self.extracted_answers[-(self.convergence_k + 1):]]
+        if len(self.extracted_answers) >= self.convergence_k:
+            # ``convergence_k`` means k consecutive complete chunks.
+            recent_answers = [a['answer_normalized'] for a in self.extracted_answers[-self.convergence_k:]]
             
-            # All k+1 should be the same
+            # All k should be the same and non-empty.
             if len(set(recent_answers)) == 1 and recent_answers[0]:  # All same and not empty
                 self.stop_triggered = True
                 self.stop_reason = f"answer_converged_for_{self.convergence_k}_chunks"

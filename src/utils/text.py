@@ -172,6 +172,37 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     return None
 
 
+def extract_complete_json_from_text(text: str) -> Optional[dict]:
+    """Extract a complete JSON object without the permissive fallback.
+
+    Early stopping must never treat a truncated JSON prefix as a valid answer.
+    ``extract_json_from_text`` intentionally has a regex recovery path for
+    ordinary generation, so the stopping path uses this strict variant.
+    """
+    if not text:
+        return None
+
+    cleaned = text.replace('<END_JSON>', '')
+    cleaned = re.sub(r'```json\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'```\s*', '', cleaned)
+    tagged = re.search(
+        r'<JSON>\s*(.*?)\s*</JSON>', cleaned,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if tagged:
+        cleaned = tagged.group(1).strip()
+
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r'\{', cleaned):
+        try:
+            value, _ = decoder.raw_decode(cleaned[match.start():])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
 def extract_answer_from_text(text: str) -> str:
     """
     Extract answer from free-form text.
