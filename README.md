@@ -1,10 +1,14 @@
 # Dual Stopping Iterative RAG on HotpotQA
 
-A complete research implementation of **Dual Stopping Iterative RAG** using **Qwen 3B** on the HotpotQA multi-hop question answering dataset (distractor setting).
+A research implementation of iterative retrieval-augmented generation on the
+HotpotQA distractor dataset. The default configuration uses
+`Qwen/Qwen2.5-3B-Instruct`; the Renku benchmark can select
+`Qwen/Qwen2.5-7B-Instruct` explicitly.
 
 ## Overview
 
-This system implements iterative multi-hop retrieval-augmented generation with two independent early stopping mechanisms:
+This system implements iterative multi-hop retrieval-augmented generation with
+two optional early stopping mechanisms:
 
 1. **Reasoning Early Stopping**: Stops generation within a single hop when the answer converges across consecutive output chunks
 2. **Retrieval Early Stopping**: Stops retrieving additional hops when marginal information gain is low
@@ -12,9 +16,10 @@ This system implements iterative multi-hop retrieval-augmented generation with t
 ## Features
 
 - ✅ Iterative multi-hop RAG with up to H hops (configurable)
-- ✅ Four baseline configurations for ablation studies
-- ✅ Open-weight LLM: Qwen 3B (no paid APIs)
-- ✅ Simulated retrieval using sentence embeddings (the current ranker uses NumPy cosine scoring)
+- ✅ Four stopping ablations plus an oracle-evidence diagnostic
+- ✅ Open-weight Qwen generation (no paid API required)
+- ✅ Dense sentence retrieval, lexical BM25, or normalized hybrid ranking
+- ✅ Optional model-free evidence sufficiency critic
 - ✅ Comprehensive evaluation (EM/F1, avg hops, avg tokens, cost metrics)
 - ✅ Detailed JSONL trace logs for analysis
 - ✅ Embedding cache for fast experimentation
@@ -26,7 +31,8 @@ This system implements iterative multi-hop retrieval-augmented generation with t
 
 - Python 3.10+
 - CUDA 11.8+ (optional, for GPU acceleration)
-- ~6GB VRAM for Qwen 3B inference (or run on CPU)
+- GPU memory depends on the selected Qwen checkpoint; Renku GPU is recommended
+- CPU execution is supported but substantially slower
 
 ### Setup
 
@@ -142,10 +148,11 @@ python scripts/run_experiment.py --method dual_stopping \
   --enable_evidence_critic --evidence_critic_threshold 0.65 --max_examples 200 --seed 42
 ```
 
-For Qwen models, dual stopping uses `TextIteratorStreamer` and a stopping
+For Qwen models, reasoning stopping uses `TextIteratorStreamer` and a stopping
 criterion so callbacks can interrupt decoding. Token counts are measured from
 the streamed prefix. Azure runs remain API-driven and cannot interrupt a
-provider-side completion.
+provider-side completion. The four stopping modes are experimental ablations;
+retrieval-only stopping is currently the simplest production-style baseline.
 
 ### 4. Evaluate Results
 
@@ -177,10 +184,10 @@ dual-stoppingRAG/
 │   │   └── hotpot_loader.py       # HotpotQA data loading
 │   ├── retrieval/
 │   │   ├── embedder.py            # Sentence embedding model
-│   │   ├── index.py               # FAISS index builder & cache
-│   │   └── ranker.py              # Paragraph ranking
+│   │   ├── index.py               # Embedding cache and NumPy index helpers
+│   │   └── ranker.py              # Dense, BM25, and hybrid paragraph ranking
 │   ├── llm/
-│   │   ├── qwen.py                # Qwen 3B model wrapper
+│   │   ├── qwen.py                # Configurable Qwen model wrapper
 │   │   ├── prompts.py             # All prompt templates
 │   │   ├── generation.py          # Text generation utilities
 │   │   └── early_stop.py          # Answer convergence detector
@@ -209,12 +216,32 @@ dual-stoppingRAG/
 
 ## Methodology
 
+### Current approach
+
+The current system is a controlled HotpotQA experiment rather than an
+open-corpus production retriever. Each example supplies a question and a
+small candidate paragraph pool containing supporting paragraphs and
+distractors.
+
+For each hop, the engine:
+
+1. Encodes the current query and ranks candidate paragraphs with dense cosine
+   similarity, BM25, or normalized dense/BM25 interpolation.
+2. Adds the selected paragraphs to cumulative evidence while avoiding repeated
+   titles when enough candidates remain.
+3. Prompts Qwen for a short answer, an evidence flag, supporting quotes,
+   confidence, and an optional focused follow-up query.
+4. Applies the grounding guard and, when enabled, the lexical evidence critic.
+5. Selects the highest-confidence non-empty answer as the final answer and
+   records all hop-level decisions in `traces.jsonl`.
+
 ### Iterative RAG Loop
 
 For each question, the system performs up to H hops:
 
 1. **Query Formation**: Use original question (hop 1) or LLM-generated follow-up query
-2. **Retrieval**: Rank candidate paragraphs by cosine similarity, select top-K
+2. **Retrieval**: Rank candidate paragraphs with the configured dense/BM25/hybrid
+   ranker and select top-K
 3. **Generation**: LLM produces answer + follow-up query + confidence
 4. **Stopping Check**: Apply reasoning and/or retrieval stopping criteria
 
@@ -229,15 +256,21 @@ For each question, the system performs up to H hops:
 
 #### 2. Retrieval Early Stopping
 
-Stops retrieving new hops if ALL conditions hold:
+Stops retrieving new hops after the minimum hop count when the answer is
+stable and supported with sufficient confidence, or when the latest evidence
+has low novelty while confidence and evidence support remain high. Repeated
+documents alone are never sufficient to stop.
+
+The default stopping parameters are:
+
 - Hop >= minimum threshold (default 2)
-- Answer stable across last 2 hops
-- Low retrieval novelty (high Jaccard overlap with previous hop)
-- Confidence >= threshold (default 0.6)
+- Answer stability window of 2 hops
+- Novelty overlap threshold 0.7
+- Confidence threshold 0.6
 
 **Benefit**: Reduces retrieval cost when additional hops provide little new information
 
-### Four Baselines
+### Ablation modes and diagnostics
 
 | Baseline | Reasoning Stop | Retrieval Stop | Description |
 |----------|---------------|----------------|-------------|
@@ -245,6 +278,7 @@ Stops retrieving new hops if ALL conditions hold:
 | `fixed_hops_reasoning_stop` | ✅ | ❌ | Early stop generation, always H hops |
 | `retrieval_stop_only` | ❌ | ✅ | Early stop hops, full generation |
 | `dual_stopping` | ✅ | ✅ | Both mechanisms enabled |
+| `oracle_evidence` | ❌ | ❌ | Diagnostic only; supplies gold supporting paragraphs |
 
 ## Output Files
 
@@ -272,15 +306,16 @@ One JSON object per line, per example:
       "hop": 1,
       "query": "...",
       "retrieved_paragraphs": [...],
-      "intermediate_answer": "...",
+      "answer": "...",
       "confidence": 0.7,
       "tokens_generated": 120,
       "reasoning_stopped": true,
-      "extracted_answers": ["ans1", "ans2", "ans2"]
+      "parse_failed": false,
+      "retrieval_novelty": null
     }
   ],
   "retrieval_stopped": true,
-  "retrieval_stop_reason": "answer_stable_and_low_novelty"
+  "retrieval_stop_reason": "stable_answer_high_conf_hop_2"
 }
 ```
 
@@ -290,10 +325,13 @@ One JSON object per line, per example:
   "em": 0.35,
   "f1": 0.42,
   "avg_hops": 2.3,
-  "avg_tokens": 180.5,
-  "reasoning_early_stop_rate": 0.68,
-  "retrieval_early_stop_rate": 0.45,
-  "avg_cost": 2480.5
+  "avg_tokens_generated": 180.5,
+  "reasoning_stop_rate": 0.68,
+  "retrieval_stop_rate": 0.45,
+  "parse_failure_rate": 0.0,
+  "supporting_fact_recall_at_k": 0.82,
+  "avg_latency_seconds": 4.4,
+  "stop_reason_counts": {"max_hops_reached": 50}
 }
 ```
 
@@ -309,19 +347,29 @@ See `python scripts/run_experiment.py --help` for all options. Key parameters:
 - `--min_hops`: Minimum hops before retrieval stop (default 2)
 - `--overlap_threshold`: Jaccard threshold for low novelty (default 0.7)
 - `--conf_threshold`: Confidence threshold for retrieval stop (default 0.6)
+- `--retrieval_mode`: `dense`, `bm25`, or `hybrid` (default `dense`)
+- `--dense_weight`: Dense weight for hybrid ranking (default 0.5)
+- `--enable_evidence_critic`: Add the model-free evidence sufficiency signal
+- `--example_ids_file`: Reuse an exact JSON list of evaluation IDs
 
 ## Reproducibility
 
-All runs use fixed seeds and save full configuration to `config.json`. To reproduce:
+All runs use fixed seeds and save the full configuration and evaluation IDs to
+`config.json` and `metrics.json`. For a matched benchmark, create one frozen ID
+manifest and pass it to every method:
 
 ```bash
-python scripts/run_experiment.py \
-  --method dual_stopping \
-  --max_examples 500 \
-  --seed 42 \
-  --hops 4 \
-  --top_k 5
+python scripts/run_experiment.py --method all \
+  --dataset_path data/hotpotqa/hotpot_dev_distractor_v1.json \
+  --example_ids_file example_ids_dev_50_seed42.json \
+  --model_name Qwen/Qwen2.5-7B-Instruct \
+  --embed_model_name sentence-transformers/all-MiniLM-L6-v2 \
+  --seed 42 --hops 3 --top_k 5 --max_new_tokens 192
 ```
+
+Run this command in the Renku terminal after installing `requirements.txt` and
+downloading the dataset. The same repository is also runnable locally when the
+PyTorch and Transformers dependencies are installed.
 
 ## Performance claims
 
