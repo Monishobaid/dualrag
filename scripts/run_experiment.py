@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Main experiment runner."""
+"""Main experiment runner and matched-evaluation harness.
+
+The runner freezes example IDs, seeds each method, records per-hop traces, and
+computes EM/F1 plus efficiency metrics. The ``oracle_evidence`` mode is a
+diagnostic: it selects the paragraphs named by HotpotQA's gold
+``supporting_facts`` and therefore measures generation quality with retrieval
+errors removed. It is not a deployable retrieval strategy.
+"""
 
 import argparse
 import logging
@@ -32,7 +39,7 @@ logger = None
 
 
 def _read_example_ids(path: str):
-    """Read a frozen ID manifest (JSON list or {'ids': [...]} object)."""
+    """Read the exact evaluation cohort used by a matched comparison."""
     with open(path, 'r') as f:
         payload = json.load(f)
     ids = payload.get('ids') if isinstance(payload, dict) else payload
@@ -41,7 +48,7 @@ def _read_example_ids(path: str):
     return ids
 
 def set_seed(seed: int):
-    """Set random seeds for reproducibility."""
+    """Seed Python, NumPy, and Torch so ablations share the same randomness."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -49,6 +56,12 @@ def set_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 def run_single_experiment(args, method, base_run_id):
+    """Run one method and write config, predictions, traces, and metrics.
+
+    Every method receives the same frozen IDs and model settings. This is what
+    makes a fixed-hop result comparable with retrieval-stop, dual-stop, or the
+    oracle-evidence diagnostic.
+    """
     # Set up run ID
     if args.run_id is None or args.method == 'all':
         run_id = f"{method}_{base_run_id}"
@@ -141,8 +154,9 @@ def run_single_experiment(args, method, base_run_id):
                 print(f"{'#'*80}\n")
 
                 # Oracle diagnostic: pass only gold supporting-fact titles to
-                # generation. This isolates answer-generation quality from
-                # retrieval errors and must never be used for a deployable run.
+                # generation. Comparing this result with normal retrieval
+                # tells us whether the main bottleneck is retrieval or Qwen's
+                # answer generation. It uses labels unavailable at inference.
                 run_paragraphs = example.candidate_paragraphs
                 run_hops = config.max_hops
                 run_top_k = config.top_k

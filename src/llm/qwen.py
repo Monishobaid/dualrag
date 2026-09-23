@@ -1,4 +1,10 @@
-"""Qwen 3B model wrapper."""
+"""Configurable Qwen causal-language-model wrapper.
+
+The default is Qwen2.5-3B-Instruct for local smoke tests; Renku benchmark
+commands select Qwen2.5-7B-Instruct explicitly. This wrapper provides normal
+generation and token accounting, while ``generation.py`` adds the streamed
+callback path used by the answer-convergence ablation.
+"""
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -7,7 +13,7 @@ from typing import Optional
 
 
 class QwenModel:
-    """Wrapper for Qwen 3B model."""
+    """Load an instruction-tuned Qwen checkpoint on CPU or GPU."""
     
     def __init__(
         self,

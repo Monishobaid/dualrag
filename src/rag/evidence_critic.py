@@ -1,9 +1,15 @@
 """Lightweight evidence sufficiency checks for iterative RAG.
 
-The critic is deliberately model-free.  It scores whether the generated answer
-is supported by the retrieved passages and whether the model supplied a quote
-that can be found in those passages.  This makes it useful as a safe controller
-in benchmarks where training a learned stop model is not yet practical.
+Paper context: this is inspired by the information-sufficiency critic in SIM-RAG
+and the document-judging stage in MAIN-RAG. The implementation is deliberately
+model-free and lexical. It scores whether the answer and any supplied quote
+appear in the retrieved passages; it is not a trained critic or a multi-agent
+pipeline.
+
+Example: if the answer is ``Rome`` and the passages contain ``Rome``, the answer
+gets lexical support. That alone does not prove that the passage answers the
+question's full relation, so this critic is a conservative gate rather than a
+correctness guarantee.
 """
 
 from __future__ import annotations

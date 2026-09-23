@@ -1,4 +1,9 @@
-"""HotpotQA evaluation metrics."""
+"""HotpotQA-style exact-match and token-level F1 evaluation.
+
+The evaluator scores the final short answer against the dataset's gold answer.
+Supporting-fact recall is calculated separately by the experiment runner; it is
+not part of EM/F1.
+"""
 
 from typing import Dict, Any, List
 from src.utils.text import compute_exact_match, compute_f1

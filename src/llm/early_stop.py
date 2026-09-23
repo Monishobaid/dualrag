@@ -1,4 +1,12 @@
-"""Answer convergence early stopping mechanism."""
+"""Answer-convergence stopping for streamed JSON generation.
+
+Paper context: this follows the *Answer Convergence as a Signal for Early
+Stopping in Reasoning* idea. The paper compares answers after successive
+reasoning chunks and stops when the answer stays unchanged. Our adaptation
+uses complete JSON ``answer`` fields from a streamed Qwen response. It is not
+HALT-CoT: we do not calculate answer entropy or inspect a probability
+distribution.
+"""
 
 from typing import List, Optional, Dict, Any
 import logging
@@ -14,8 +22,12 @@ class AnswerConvergenceStopper:
     """
     Reasoning early stopping based on answer convergence.
     
-    Monitors answer stability across generation chunks and stops
-    when the answer has converged for k consecutive chunks.
+    Monitors answer stability across generation chunks and stops when the
+    answer has converged for ``k`` consecutive chunks.
+
+    Example: ``["", "Rome", "Rome"]`` with ``k=2`` can stop after the last
+    chunk. A partial JSON prefix is ignored so a truncated answer cannot
+    trigger a stop.
     """
     
     def __init__(

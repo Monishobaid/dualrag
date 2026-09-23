@@ -1,4 +1,9 @@
-"""Embedding model wrapper."""
+"""Sentence-embedding wrapper used by the dense retriever.
+
+This is a standard MiniLM semantic baseline, not the graph/path retrieval from
+PathRAG or the forward/backward scoring from FB-RAG. Embeddings are normalized
+so the ranker can use a dot product as cosine similarity.
+"""
 
 import torch
 import numpy as np

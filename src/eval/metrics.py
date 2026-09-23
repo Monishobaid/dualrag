@@ -1,4 +1,9 @@
-"""Metrics aggregation utilities."""
+"""Aggregate accuracy, retrieval, stopping, and efficiency diagnostics.
+
+The metrics distinguish answer quality from resource use: for example, two
+methods can have the same EM/F1 while one uses fewer hops or generated tokens.
+Stop-reason distributions are retained so a benchmark result can be audited.
+"""
 
 from typing import List, Dict, Any
 import numpy as np

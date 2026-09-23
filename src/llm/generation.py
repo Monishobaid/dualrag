@@ -1,4 +1,10 @@
-"""Text generation utilities."""
+"""Text generation and streaming helpers.
+
+The Qwen streaming path exists so a stopping callback can interrupt decoding.
+This is an enabling mechanism for experiments such as HALT-CoT, but this file
+does not implement HALT-CoT's entropy signal; the current callback checks answer
+convergence instead.
+"""
 
 import torch
 import threading
@@ -56,7 +62,9 @@ class TextGenerator:
                 response_format=response_format
             )
         else:
-            # Default path (Qwen)
+            # Qwen models receive the system instruction as part of the prompt.
+            # This keeps the JSON-format requirement active in both normal and
+            # streamed generation.
             qwen_prompt = prompt
             if system_message:
                 qwen_prompt = f"{system_message}\n\n{prompt}"

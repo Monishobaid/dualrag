@@ -1,4 +1,9 @@
-"""Paragraph ranking for retrieval."""
+"""Paragraph ranking for the controlled HotpotQA retrieval pool.
+
+The dense, BM25, and hybrid modes are practical baselines. FB-RAG discusses
+combining retrieval signals, but this class does not implement FB-RAG's
+forward/backward look-ahead scoring or sampled-output chunk evaluation.
+"""
 
 from typing import List, Dict, Any, Optional, Set
 import numpy as np
@@ -9,7 +14,12 @@ from src.utils.text import compute_jaccard_similarity
 
 
 class ParagraphRanker:
-    """Ranks paragraphs for retrieval."""
+    """Rank paragraphs with dense, lexical, or hybrid scores.
+
+    In hybrid mode each score list is normalized per query before mixing. For
+    example, ``dense_weight=0.5`` gives equal weight to semantic similarity and
+    BM25 term matching after normalization.
+    """
     
     def __init__(self, embedder: Embedder, cache: Optional[EmbeddingCache] = None,
                  retrieval_mode: str = "dense", dense_weight: float = 0.5,

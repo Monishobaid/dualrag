@@ -1,4 +1,11 @@
-"""Retrieval early stopping logic."""
+"""Heuristic retrieval stopping for the iterative RAG loop.
+
+Paper context: the STOP/CONTINUE framing is related to Stop-RAG and the
+information-sufficiency problem studied by SIM-RAG. This file is deliberately
+smaller: it uses hand-set stability, confidence, hop, and novelty checks. It
+does not implement Stop-RAG's trained Q(lambda) value controller or SIM-RAG's
+learned critic.
+"""
 
 from typing import Dict, Any, List, Optional
 import logging
@@ -14,6 +21,10 @@ class RetrievalStopper:
     2. Retrieval novelty is low
     3. Confidence is high enough
     4. Minimum hops threshold met
+
+    Example: after hop 2, if the last two normalized answers match, confidence
+    is at least ``conf_threshold``, and the model says the evidence is enough,
+    the controller returns ``stable_answer_high_conf_hop_2``.
     """
     
     def __init__(

@@ -1,4 +1,9 @@
-"""Configuration management for Dual Stopping RAG."""
+"""Configuration for reproducible Dual Stopping RAG experiments.
+
+The configuration keeps model, dataset, retrieval, generation, stopping, and
+seed choices in one JSON-serializable object. The default model is Qwen 3B;
+Renku benchmark commands explicitly select Qwen 7B when comparing methods.
+"""
 
 from dataclasses import dataclass, asdict
 from typing import Optional

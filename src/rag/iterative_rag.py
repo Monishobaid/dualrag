@@ -1,4 +1,11 @@
-"""Iterative RAG engine."""
+"""Iterative multi-hop RAG engine.
+
+The loop follows the common retrieve -> reason -> formulate-a-follow-up-query
+pattern used in multi-round RAG research. It is a custom research pipeline:
+it combines dense/BM25 retrieval, optional evidence checks, and two ablation
+stoppers, but it is not a faithful implementation of the trained Stop-RAG or
+SIM-RAG systems.
+"""
 
 from typing import Dict, Any, List, Optional, Union
 import logging
@@ -15,7 +22,11 @@ from src.llm.azure_openai import AzureOpenAIModel
 
 class IterativeRAG:
     """
-    Iterative multi-hop RAG engine with dual stopping mechanisms.
+    Iterative multi-hop RAG engine with optional dual stopping.
+
+    Example flow: retrieve paragraphs for a question, ask Qwen for an answer
+    and a focused follow-up query, retrieve again using that query, then choose
+    the highest-confidence non-empty answer from the hop history.
     """
     
     def __init__(
@@ -115,7 +126,9 @@ class IterativeRAG:
             prev_results = retrieval_history.get_latest_results()
 
             # Rank paragraphs
-            # Fix A: Only exclude titles if candidate pool is large enough
+            # Avoid repeating titles when there are enough unused candidates.
+            # If the pool is too small, filtering would return fewer than
+            # top_k paragraphs and could remove useful evidence.
             remaining_paragraphs = len(candidate_paragraphs) - len(retrieval_history.all_retrieved_titles)
             should_exclude = remaining_paragraphs >= top_k
             

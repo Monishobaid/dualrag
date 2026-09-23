@@ -1,4 +1,11 @@
-"""Prompt templates for RAG system."""
+"""Prompt templates used by the custom HotpotQA reader.
+
+The JSON fields (answer, evidence flag, quotes, follow-up query, confidence,
+and short reasoning) are an experiment interface designed for this repository.
+They are not a verbatim prompt from any one uploaded paper. Keeping the
+interface structured makes each hop auditable and lets the stopping code read a
+complete ``answer`` field safely.
+"""
 
 from typing import List, Dict, Any
 
@@ -31,7 +38,12 @@ def get_multihop_reasoning_prompt(
     hop: int
 ) -> str:
     """
-    Prompt for multi-hop reasoning.
+    Build the reader prompt for one retrieval hop.
+
+    ``current_hypothesis`` is intentionally an intermediate field; the final
+    ``answer`` must be a short span. For example, a hop may mention a person in
+    one paragraph but still need a follow-up query to find that person's birth
+    place.
     
     Args:
         question: Original question

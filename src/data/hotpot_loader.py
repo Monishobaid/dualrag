@@ -1,4 +1,11 @@
-"""HotpotQA dataset loader."""
+"""Loader for the HotpotQA distractor-format dataset.
+
+The dataset is the standard HotpotQA benchmark; Stop-RAG evaluates on it but
+does not define its schema. Each record contains a question, answer, a list of
+``[title, sentences]`` contexts, and ``supporting_facts`` identifying gold
+titles and sentence indices. The loader turns each context entry into one
+retrievable paragraph while retaining the original sentence list for audits.
+"""
 
 import json
 from typing import List, Dict, Any, Optional
@@ -7,7 +14,12 @@ import random
 
 
 class HotpotQAExample:
-    """Single HotpotQA example."""
+    """One question, its distractor paragraph pool, and gold support labels.
+
+    Example: a context entry ``["Film", ["Sentence one.", "Sentence two."]]``
+    becomes a paragraph with title ``Film`` and joined text, while the original
+    sentences remain available in the record.
+    """
     
     def __init__(
         self,

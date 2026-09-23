@@ -1,4 +1,10 @@
-"""Baseline configurations for ablation studies."""
+"""Stopping ablations and diagnostic configurations.
+
+These modes are our controlled comparison, not four different language models:
+the same generator and retriever can be run with fixed hops, reasoning stop,
+retrieval stop, or both. ``oracle_evidence`` is an evaluation-only ceiling
+that supplies gold supporting paragraphs and must not be used for deployment.
+"""
 
 from src.config import RAGConfig, get_baseline_config
 
