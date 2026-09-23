@@ -19,9 +19,13 @@ two optional early stopping mechanisms:
 - ✅ Four stopping ablations plus an oracle-evidence diagnostic
 - ✅ Open-weight Qwen generation (no paid API required)
 - ✅ Dense sentence retrieval, lexical BM25, or normalized hybrid ranking
+- ✅ Optional cross-encoder second-stage reranking over a configurable shortlist
+- ✅ Explicit evidence-context budget (no hidden ten-paragraph truncation)
 - ✅ Optional model-free evidence sufficiency critic
 - ✅ Comprehensive evaluation (EM/F1, avg hops, avg tokens, cost metrics)
 - ✅ Detailed JSONL trace logs for analysis
+- ✅ Per-example normal-versus-oracle comparison report for bottleneck diagnosis
+- ✅ Running paper notes and measurements in `RESEARCH_LOG.md`
 - ✅ Embedding cache for fast experimentation
 - ✅ GPU/CPU support with automatic device selection
 
@@ -121,6 +125,40 @@ python scripts/run_experiment.py \
   --conf_threshold 0.6 \
   --seed 42
 ```
+
+### Retrieval improvements
+
+Hybrid retrieval interpolates normalized dense and BM25 scores. A cross-encoder
+can then rerank a larger first-stage shortlist (the default model below is a
+small English MS MARCO reranker):
+
+```bash
+python scripts/run_experiment.py \
+  --method fixed_hops \
+  --retrieval_mode hybrid \
+  --dense_weight 0.5 \
+  --reranker_model_name cross-encoder/ms-marco-MiniLM-L-6-v2 \
+  --reranker_candidate_k 20 \
+  --max_evidence_paragraphs 15 \
+  --max_examples 50 --seed 42
+```
+
+`--max_evidence_paragraphs` is optional. When omitted, all retrieved
+paragraphs are passed to the reader; setting it makes the context budget
+explicit and auditable.
+
+The oracle-evidence mode supplies gold supporting paragraphs for diagnosis
+only. After a matched normal and oracle run, generate the per-example report:
+
+```bash
+python scripts/compare_predictions.py \
+  --normal_dir outputs/<normal_run> \
+  --oracle_dir outputs/<oracle_run> \
+  --output outputs/normal_vs_oracle.json
+```
+
+See `RESEARCH_LOG.md` for the frozen protocol, baseline table, and dated
+experiment entries.
 
 #### Hybrid retrieval and oracle diagnostic
 
