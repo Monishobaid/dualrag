@@ -233,10 +233,10 @@ class IterativeRAG:
 
             hop_history.append(hop_data)
             
-            # Select answers using deterministic evidence grounding as the
-            # primary signal.  The previous implementation selected the
-            # highest self-reported confidence, which let an overconfident
-            # early hop override a later answer supported by more evidence.
+            # Select answers using confidence after the grounding guard has
+            # downgraded unsupported answers, with deterministic grounding as
+            # a secondary tie-breaker. This keeps selection auditable without
+            # blindly trusting a raw model confidence value.
             current_conf = hop_result.get('confidence', 0.0)
             current_ans = hop_result.get('answer', "").strip()
             current_score = hop_result.get('answer_selection_score', 0.0)
@@ -313,9 +313,10 @@ class IterativeRAG:
             current_query = followup_query
         
         # === FINAL RESULTS ===
-        # ``best_answer`` is chosen by grounding + evidence sufficiency + model
-        # confidence, rather than confidence alone.  This keeps a supported
-        # later-hop answer from being discarded by an overconfident first hop.
+        # ``best_answer`` is chosen by calibrated confidence with a grounding
+        # tie-breaker, rather than an unguarded confidence value. This keeps a
+        # supported later-hop answer from being discarded by an unsupported
+        # overconfident first hop.
         final_answer = best_answer or (hop_history[-1]['answer'] if hop_history else "")
         
         # Fallback to best answer if final is empty/failed but we had a good one earlier

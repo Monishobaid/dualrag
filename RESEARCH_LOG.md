@@ -36,10 +36,9 @@ involve answer extraction, evidence interpretation, or the model itself.
 1. Evidence formatting no longer silently drops paragraphs after ten. The
    runner now has an explicit `--max_evidence_paragraphs` budget; omitted means
    preserve all retrieved evidence.
-2. Answer selection now combines deterministic evidence grounding, the model's
-   confidence, and evidence sufficiency. It no longer uses raw confidence
-   alone: unsupported confident answers are downgraded by the grounding guard,
-   then grounding is used as a secondary tie-breaker.
+2. Answer selection uses model confidence after the deterministic grounding
+   guard, with grounding as a secondary tie-breaker. Unsupported confident
+   answers are downgraded before selection instead of trusting raw confidence.
 3. Added a second-stage `sentence-transformers` cross-encoder reranker. It
    reranks a configurable first-stage shortlist, so dense, BM25, and hybrid
    retrieval remain directly comparable.
