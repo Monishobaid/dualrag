@@ -7,21 +7,27 @@ interface structured makes each hop auditable and lets the stopping code read a
 complete ``answer`` field safely.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
-def format_paragraphs(paragraphs: List[Dict[str, Any]], max_paragraphs: int = 10) -> str:
+def format_paragraphs(paragraphs: List[Dict[str, Any]], max_paragraphs: Optional[int] = None) -> str:
     """
     Format paragraphs for prompt.
     
     Args:
         paragraphs: List of paragraph dicts with 'title' and 'text'
-        max_paragraphs: Maximum paragraphs to include
+        max_paragraphs: Optional maximum paragraphs to include. ``None`` keeps
+            every paragraph.  The old implicit ten-paragraph cap silently
+            discarded later-hop evidence, so callers now choose a budget
+            explicitly when one is needed.
     
     Returns:
         Formatted evidence string
     """
-    paragraphs = paragraphs[:max_paragraphs]
+    if max_paragraphs is not None:
+        if max_paragraphs < 0:
+            raise ValueError("max_paragraphs must be non-negative or None")
+        paragraphs = paragraphs[:max_paragraphs]
     
     formatted = []
     for i, para in enumerate(paragraphs, 1):
@@ -35,7 +41,8 @@ def format_paragraphs(paragraphs: List[Dict[str, Any]], max_paragraphs: int = 10
 def get_multihop_reasoning_prompt(
     question: str,
     evidence: List[Dict[str, Any]],
-    hop: int
+    hop: int,
+    max_evidence_paragraphs: Optional[int] = None,
 ) -> str:
     """
     Build the reader prompt for one retrieval hop.
@@ -53,7 +60,7 @@ def get_multihop_reasoning_prompt(
     Returns:
         Formatted prompt
     """
-    evidence_str = format_paragraphs(evidence)
+    evidence_str = format_paragraphs(evidence, max_paragraphs=max_evidence_paragraphs)
     
     prompt = f"""You are answering a multi-hop question that may require information from multiple sources.
 

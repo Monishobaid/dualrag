@@ -66,7 +66,10 @@ class IterativeRAG:
             self.ranker = ParagraphRanker(
                 embedder, cache=embedding_cache,
                 retrieval_mode=getattr(config, 'retrieval_mode', 'dense'),
-                dense_weight=getattr(config, 'dense_weight', 0.5))
+                dense_weight=getattr(config, 'dense_weight', 0.5),
+                reranker_model_name=getattr(config, 'reranker_model_name', None),
+                reranker_candidate_k=getattr(config, 'reranker_candidate_k', 20),
+                device=getattr(config, 'device', 'auto'))
         
         # Stopping mechanisms
         if config:
@@ -107,6 +110,7 @@ class IterativeRAG:
         # Track best answer found so far (fallback if final hop fails)
         best_answer = ""
         best_confidence = 0.0
+        best_selection_score = -1.0
         
         for hop in range(1, max_hops + 1):
             print(f"\n{'='*80}")
@@ -222,18 +226,28 @@ class IterativeRAG:
                 'reasoning_stop_stats': hop_result.get('early_stop_stats', {}),
                 'parse_failed': bool(hop_result.get('parse_failed', False))
             }
+            hop_data['grounding_score'] = hop_result.get('grounding_score', 0.0)
+            hop_data['answer_selection_score'] = hop_result.get('answer_selection_score', 0.0)
             if 'evidence_critic' in hop_result:
                 hop_data['evidence_critic'] = hop_result['evidence_critic']
 
             hop_history.append(hop_data)
             
-            # Update best answer if confidence improved and answer is valid
+            # Select answers using deterministic evidence grounding as the
+            # primary signal.  The previous implementation selected the
+            # highest self-reported confidence, which let an overconfident
+            # early hop override a later answer supported by more evidence.
             current_conf = hop_result.get('confidence', 0.0)
             current_ans = hop_result.get('answer', "").strip()
-            
-            if current_conf > best_confidence and current_ans and len(current_ans) > 1:
-                logging.info(f"New best answer found (conf: {current_conf:.2f}): {current_ans}")
+            current_score = hop_result.get('answer_selection_score', 0.0)
+
+            if current_score > best_selection_score and current_ans and len(current_ans) > 1:
+                logging.info(
+                    "New best answer found (selection %.3f, confidence %.2f): %s",
+                    current_score, current_conf, current_ans,
+                )
                 best_confidence = current_conf
+                best_selection_score = current_score
                 best_answer = current_ans
             
             # === STOPPING DECISIONS ===
@@ -299,9 +313,9 @@ class IterativeRAG:
             current_query = followup_query
         
         # === FINAL RESULTS ===
-        # A later hop can be less reliable than an earlier one. Prefer the
-        # highest-confidence non-empty answer and fall back to the final hop
-        # only when no usable answer was produced.
+        # ``best_answer`` is chosen by grounding + evidence sufficiency + model
+        # confidence, rather than confidence alone.  This keeps a supported
+        # later-hop answer from being discarded by an overconfident first hop.
         final_answer = best_answer or (hop_history[-1]['answer'] if hop_history else "")
         
         # Fallback to best answer if final is empty/failed but we had a good one earlier
@@ -364,7 +378,12 @@ class IterativeRAG:
             Response dict with answer, followup_query, confidence, tokens
         """
         # Build prompt
-        prompt = get_multihop_reasoning_prompt(question, evidence, hop)
+        prompt = get_multihop_reasoning_prompt(
+            question,
+            evidence,
+            hop,
+            max_evidence_paragraphs=getattr(self.config, 'max_evidence_paragraphs', None),
+        )
         
         # Generate with or without reasoning stop
         enable_reasoning_stop = self.config and getattr(self.config, 'enable_reasoning_stop', False)
@@ -459,6 +478,11 @@ class IterativeRAG:
              logging.warning("Follow-up query is identical to the current question. Clearing it to force stop.")
              followup_query = ""
              
+        # Grounding score is also used for answer selection.  Exact phrase
+        # matches are strongest; otherwise score the fraction of meaningful
+        # answer words found in the accumulated evidence.
+        grounding_score = self._grounding_score(answer, evidence)
+
         # Grounding Check (Guard B)
         # Ensure the answer actually appears in the retrieved text (to prevention hallucinations)
         if confidence > 0.5 and answer and len(answer) > 4:
@@ -529,6 +553,13 @@ class IterativeRAG:
                 has_enough_evidence = False
                 confidence = min(confidence, evidence_critic['score'])
 
+        answer_selection_score = (
+            0.55 * grounding_score
+            + 0.25 * confidence
+            + 0.15 * float(has_enough_evidence)
+            + 0.05 * min(1.0, len(evidence) / 10.0)
+        ) if answer else 0.0
+
         return {
             'answer': answer,
             'followup_query': followup_query,
@@ -541,6 +572,26 @@ class IterativeRAG:
             'stopped_early': stopped_early,
             'early_stop_stats': early_stop_stats,
             'evidence_critic': evidence_critic,
+            'grounding_score': grounding_score,
+            'answer_selection_score': answer_selection_score,
             'raw_output': generated_text,
             'parse_failed': parsed is None
         }
+
+    @staticmethod
+    def _grounding_score(answer: str, evidence: List[Dict[str, Any]]) -> float:
+        """Return a simple auditable answer-to-evidence grounding score."""
+        answer = (answer or '').strip().lower().strip('"\'')
+        if not answer or answer in {"yes", "no", "true", "false", "none", "n/a"}:
+            return 0.0
+        corpus = " ".join(
+            f"{item.get('title', '')} {item.get('text', '')}".lower()
+            for item in evidence
+        )
+        if answer in corpus:
+            return 1.0
+        import re
+        words = [word for word in re.findall(r"[a-z0-9]+", answer) if len(word) > 2]
+        if not words:
+            return 0.0
+        return sum(word in corpus for word in words) / len(words)

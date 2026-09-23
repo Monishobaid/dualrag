@@ -11,6 +11,7 @@ import re
 from src.retrieval.embedder import Embedder
 from src.retrieval.index import ParagraphIndex, build_paragraph_embeddings, EmbeddingCache
 from src.utils.text import compute_jaccard_similarity
+from src.retrieval.reranker import CrossEncoderReranker
 
 
 class ParagraphRanker:
@@ -23,7 +24,10 @@ class ParagraphRanker:
     
     def __init__(self, embedder: Embedder, cache: Optional[EmbeddingCache] = None,
                  retrieval_mode: str = "dense", dense_weight: float = 0.5,
-                 bm25_k1: float = 1.5, bm25_b: float = 0.75):
+                 bm25_k1: float = 1.5, bm25_b: float = 0.75,
+                 reranker_model_name: Optional[str] = None,
+                 reranker_candidate_k: int = 20,
+                 device: str = "auto"):
         """
         Initialize ranker.
         
@@ -39,6 +43,11 @@ class ParagraphRanker:
         self.dense_weight = float(np.clip(dense_weight, 0.0, 1.0))
         self.bm25_k1 = bm25_k1
         self.bm25_b = bm25_b
+        self.reranker_candidate_k = max(1, int(reranker_candidate_k))
+        self.reranker = (
+            CrossEncoderReranker(reranker_model_name, device=device)
+            if reranker_model_name else None
+        )
 
     @staticmethod
     def _tokens(text: str) -> List[str]:
@@ -116,10 +125,24 @@ class ParagraphRanker:
                 return (x - lo) / (hi - lo) if hi > lo else np.zeros_like(x)
             combined = self.dense_weight * norm(dense_scores) + (1 - self.dense_weight) * norm(bm25_scores)
 
-        top_k = min(top_k, len(paragraphs))
+        # Cross-encoder reranking is deliberately second-stage: retain the
+        # base scores and ask the expensive model to reorder only a larger
+        # candidate shortlist.  With no reranker this is exactly the old path.
+        candidate_k = min(
+            len(paragraphs),
+            max(top_k, self.reranker_candidate_k) if self.reranker else top_k,
+        )
         # Stable descending sort keeps dataset order for exact ties (e.g. a
         # lexical query with no overlapping terms), making runs reproducible.
-        top_indices = np.argsort(-combined, kind='stable')[:top_k]
+        candidate_indices = np.argsort(-combined, kind='stable')[:candidate_k]
+        rerank_scores = None
+        if self.reranker:
+            candidate_paragraphs = [paragraphs[int(idx)] for idx in candidate_indices]
+            rerank_scores = self.reranker.score(query, candidate_paragraphs)
+            order = np.argsort(-np.asarray(rerank_scores), kind='stable')[:top_k]
+            top_indices = [int(candidate_indices[int(i)]) for i in order]
+        else:
+            top_indices = candidate_indices[:top_k]
         results = []
         for idx in top_indices:
             item = {'paragraph': paragraphs[int(idx)], 'score': float(combined[idx]), 'index': int(idx),
@@ -128,6 +151,12 @@ class ParagraphRanker:
                 item['dense_score'] = float(dense_scores[idx])
             if bm25_scores is not None:
                 item['bm25_score'] = float(bm25_scores[idx])
+            if rerank_scores is not None:
+                candidate_position = int(np.where(candidate_indices == idx)[0][0])
+                item['base_score'] = float(combined[idx])
+                item['reranker_score'] = float(rerank_scores[candidate_position])
+                item['score'] = item['reranker_score']
+                item['retrieval_mode'] = f"{self.retrieval_mode}+cross_encoder"
             results.append(item)
         
         return results

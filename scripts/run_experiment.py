@@ -87,6 +87,9 @@ def run_single_experiment(args, method, base_run_id):
         max_hops=args.hops,
         retrieval_mode=args.retrieval_mode,
         dense_weight=args.dense_weight,
+        reranker_model_name=args.reranker_model_name,
+        reranker_candidate_k=args.reranker_candidate_k,
+        max_evidence_paragraphs=args.max_evidence_paragraphs,
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
@@ -282,6 +285,12 @@ def main():
                         help='Retriever: dense embeddings, lexical BM25, or normalized hybrid')
     parser.add_argument('--dense_weight', type=float, default=0.5,
                         help='Dense weight for hybrid retrieval (0-1)')
+    parser.add_argument('--reranker_model_name', type=str, default=None,
+                        help='Optional sentence-transformers cross-encoder model')
+    parser.add_argument('--reranker_candidate_k', type=int, default=20,
+                        help='First-stage shortlist size passed to the reranker')
+    parser.add_argument('--max_evidence_paragraphs', type=int, default=None,
+                        help='Explicit evidence cap; omit to preserve all retrieved paragraphs')
     parser.add_argument('--min_hops', type=int, default=2, help='Minimum hops for retrieval stop')
     parser.add_argument('--overlap_threshold', type=float, default=0.7)
     parser.add_argument('--conf_threshold', type=float, default=0.6)

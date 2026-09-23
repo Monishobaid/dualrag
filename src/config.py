@@ -30,6 +30,11 @@ class RAGConfig:
     max_hops: int = 4  # Maximum number of retrieval hops
     retrieval_mode: str = "dense"  # dense, bm25, or hybrid
     dense_weight: float = 0.5  # Hybrid dense interpolation weight
+    # Optional second-stage reranking.  The first-stage retriever still
+    # supplies the candidates; the cross-encoder only reorders that shortlist.
+    reranker_model_name: Optional[str] = None
+    reranker_candidate_k: int = 20
+    max_evidence_paragraphs: Optional[int] = None
     
     # Generation configuration
     max_new_tokens: int = 256  # Max tokens per hop generation
