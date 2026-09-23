@@ -553,11 +553,13 @@ class IterativeRAG:
                 has_enough_evidence = False
                 confidence = min(confidence, evidence_critic['score'])
 
+        # Confidence remains primary because the grounding guard has already
+        # downgraded unsupported confident answers.  Grounding is a secondary
+        # tie-breaker; treating the model's evidence flag as a large positive
+        # weight made a cautious but correct hop lose to a distractor answer
+        # on the same traces.
         answer_selection_score = (
-            0.55 * grounding_score
-            + 0.25 * confidence
-            + 0.15 * float(has_enough_evidence)
-            + 0.05 * min(1.0, len(evidence) / 10.0)
+            0.75 * confidence + 0.25 * grounding_score
         ) if answer else 0.0
 
         return {
