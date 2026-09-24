@@ -90,6 +90,26 @@ The old `legacy` and `grounded_candidates` implementations remain executable.
 Comments explain which problematic behaviors the new path avoids. We do not
 bury the old implementation in a large inactive commented-out duplicate.
 
+### Adaptive arm data flow
+
+```mermaid
+flowchart LR
+    Q[Question] --> R[Rank supplied candidate paragraphs]
+    R --> E[Accumulated evidence: 5 then 7 then 9]
+    E --> C[Qwen evidence-sufficiency critic]
+    C -->|Missing relation and budget remains| N[Targeted query: retrieve 2 fresh paragraphs]
+    N --> E
+    C -->|Sufficient or hop budget reached| G[Qwen short-answer reader]
+    E --> G
+    G --> A[Answer, sentence citations, explanation]
+```
+
+The reader sees the question and selected evidence, not the critic's prose.
+The critic runs before generation; it does not verify the final answer. Static
+controls call the same reader once, without the critic. The oracle arm alone
+uses gold supporting titles to select paragraphs. All critic and reader costs
+are included in the adaptive measurements.
+
 ## Frozen protocol (specified before new dev results)
 
 1. Use five deterministic **train** examples for execution/schema smoke tests.
@@ -143,3 +163,15 @@ Also rerun the current raw-prompt legacy reader on original50: the historical
 revision predates a small legacy prompt change, so history versus current chat
 is not a perfectly isolated chat-template ablation. These are additional
 prespecified controls, not tuning of the frozen prompts or thresholds.
+
+### Additional 14B static controls: transparently post hoc
+
+After the completed 14B confirmation result (59% adaptive EM versus 53%
+all-context EM) was observed, add `top9` and `ranked_all` with the unchanged
+14B checkpoint, reader prompt, seed, manifest and generation settings. Run after
+the queued 7B supplementary controls to avoid GPU contention. This comparison
+was **not prespecified before confirmation results**; label it a post-hoc
+mechanism check, not a new independent confirmation. No prompt, threshold or
+prediction is tuned. It tests whether the apparent 14B adaptive gain can also
+be obtained by one-call static evidence selection/order. A favorable result
+still requires replication on another untouched cohort.

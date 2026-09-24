@@ -150,3 +150,126 @@ call, actual generated tokens, raw prompts and output, strict JSON health,
 model revision, package versions, dataset/manifest hashes, latency, failures and
 sentence/title/citation recall separately. The old50 cohort is exploratory;
 a disjoint100 manifest is reserved for a frozen confirmation comparison.
+
+### Implementation and evaluation audit
+
+The research implementation begins at `6de44cd`; `30c564f` adds the static
+budget controls and paired reporter. Later result-only commits preserve
+completed artifacts. Each new run records its exact code/model revision and
+working-diff hash; published non-smoke runs started with a clean tracked diff.
+The old source paths remain runnable. Human-readable comments attribute Google
+sufficiency/IRCoT inspiration and explain removed selection behavior in the new
+path. A prompted critic is not a learned Stop-RAG controller.
+
+Relevant implementation files:
+
+- `src/llm/qwen.py`, `src/llm/generation.py`: shared Qwen chat formatting and
+  explicit input handling; legacy raw formatting is retained for comparison.
+- `src/retrieval/index.py`, `src/retrieval/embedder.py`: embedding namespaces and
+  BGE query instruction; title enrichment is a metadata baseline.
+- `src/rag/sufficiency.py`: sentence IDs, cited short-answer prompt, evidence
+  critic, structural citation validation and preserved answer strings.
+- `scripts/research_experiment.py`: label-isolated oracle, top5/all-context,
+  adaptive 5→7→9 retrieval, and static top9/ranked-all controls.
+- `scripts/report_research_results.py`, `scripts/paired_research_analysis.py`:
+  matched-ID/gold checks, rescoring and paired bootstrap intervals.
+- `scripts/analyze_research_critic.py`, `scripts/analyze_research_slices.py`:
+  post-run evidence-coverage and question-type diagnostics, with no tuning.
+
+Validation: all 18 targeted tests passed on Renku with PyTorch. Locally 15 passed
+and three PyTorch-dependent tests were skipped. Reporting scripts are exercised
+against exported real artifacts; compile success alone is not treated as GPU
+runtime verification.
+
+The frozen100 manifest excludes all original50 IDs and uses sampling seed
+20260924; generation uses seed42. It contains 85 bridge and 15 comparison
+questions, all labeled hard. All ten candidate paragraphs fit within the new
+reader's explicit 8192-token input limit in these completed runs. No dev-based
+prompt or threshold tuning is performed. The train smoke subset is a wiring
+check, not controller training.
+
+The legacy raw-versus-chat control differs only in formatting/input handling;
+the historical older prompt is reported separately. Supplemental 7B top9 and
+ranked-all controls were specified before confirmation results. The equivalent
+14B controls were added **after** observing 59% adaptive versus 53% all-context
+EM on confirmation100. These are explicitly post-hoc mechanism checks, not a
+second independent confirmation. Their prompts/settings are unchanged.
+
+Raw logs remain on Renku under `outputs/research*`; completed compact artifacts
+are tracked under `research_results/2026-09-24`. They include model/package
+versions, IDs/hashes, predictions, source sentences, raw outputs, per-call input
+and output token counts, stop reasons, and parse/schema diagnostics. The analysis
+counts empty/wrong answers separately from execution failures. Original gold
+answers and official-style EM/F1 are never corrected using the manual review.
+
+A CPU-only audit downloaded tokenizer/config JSON at the recorded MiniLM/BGE
+revisions and counted complete paragraph lengths. Plain MiniLM overflowed 17/500
+paragraphs on original50 and 41/1000 on confirmation100; none were gold-title
+paragraphs. BGE+title original50 overflowed 2/500, also no gold-title paragraphs.
+The full tables and affected IDs are in `docs/EMBEDDING_AUDIT_2026-09-24.md` and
+`research_results/2026-09-24/embedding_input_audit.json`. This is not an additional
+generation run and does not change the frozen pipeline. The title-prefix100
+variants in that audit were not benchmarked for QA.
+
+Dataset integrity: local and Renku byte hashes differ because their JSON
+serialization differs. Independently computing the canonical JSON SHA256 on
+both copies produced `8c45526920c1b11d0f16d59775c8a53b7530a48a6309f423c8f79cecbe9e8b3c`
+for all 7,405 records, including list order. Therefore the local manual/length
+audits use identical parsed data. Both cohorts contain unique IDs and have zero
+overlap. File hashes and verification details are in `dataset_integrity.json`.
+
+### Completed outcomes and interpretation
+
+All 23 new dev evaluation arms completed: 1,650 predictions over 150 unique
+questions, with zero execution failures. Five historical arms are retained in
+the 28-arm report. Repeated predictions of the same question are not independent
+samples. Train smoke checks are excluded from these performance counts.
+
+| Fresh100 configuration | EM | F1 | Mean output tokens | Mean seconds |
+|---|---:|---:|---:|---:|
+| 7B / top5 | 0.37 | 0.4973 | 65.7 | 1.01 |
+| 7B / all10 dataset order | 0.49 | 0.6107 | 69.2 | 1.19 |
+| 7B / adaptive | 0.45 | 0.5950 | 206.7 | 2.54 |
+| 14B / top5 | 0.48 | 0.5709 | 65.3 | 1.71 |
+| 14B / all10 dataset order | 0.53 | 0.6353 | 66.0 | 1.91 |
+| 14B / adaptive | 0.59 | 0.6995 | 149.8 | 3.51 |
+| 14B / top9, post-hoc control | 0.57 | 0.6941 | 65.5 | 1.91 |
+| 14B / all10 ranked, post-hoc control | 0.60 | 0.7151 | 66.7 | 1.74 |
+
+The 7B top9/ranked-all controls score 42%/44% EM. Full tables include initial
+title recall, final visible sentence recall, cited supporting facts, calls,
+input/output tokens, parse/schema failures, stop reasons and failed predictions.
+
+The original50 adaptive result (62% EM versus 52% all-context) did not replicate
+with 7B on fresh100 (45% versus 49%). With 14B, adaptive initially appears better
+than dataset-order all-context by 6 points, but its paired 95% interval is −1 to +13.
+The stronger static controls remove the apparent practical advantage: ranked-all
+scores 60%, compared with 59% adaptive, at about half the observed latency and 44.5%
+of its generated tokens. Adaptive minus ranked-all has a paired EM interval of
+−7 to +5 points. This does not prove equality; it does not establish an adaptive
+gain either. The 14B static controls are explicitly post hoc.
+
+A useful measured efficiency result remains: on original50, the short all-context
+reader and chat-formatted legacy reader both have 52% EM, while the short reader
+uses about 79% fewer output tokens and 72% less observed time. Its EM interval is
+−8 to +8 points, so general accuracy equivalence is not established. New-reader
+savings come from the short prompt/one-call design, not reasoning stopping.
+
+BGE+title+hybrid top5 improves original50 EM from 52% with the matched MiniLM
+hybrid configuration to 58% (three gains, no losses; interval 0 to +14 points).
+This is exploratory and has not been confirmed on fresh100. The oracle reference
+scores 60%/75.87% EM/F1 with 7B and 64%/78.93% with 14B on original50; oracle context
+is not a mathematical ceiling, and its gold evidence is evaluation-only.
+
+Manual review documents answer-type errors, relation/comparison failures,
+unsupported citations, answer–explanation contradictions, aliases and an
+apparent question–gold inconsistency. Eleven of the 7B adaptive method's twelve
+losses against all-context on fresh100 still have complete annotated supporting
+sentences. Retrieval alone cannot explain these losses.
+
+Decision: keep the simpler short reader as a strong baseline and replicate
+14B ranked-all on untouched data before selecting it as a final system. Do not
+claim that the current critic, dual stopping, or a vector database beats market
+RAG systems. The next research hypothesis is grounded relation/operation checking
+and calibrated train-only control, with strong static baselines and full-corpus
+retrieval. See `docs/RESEARCH_CONCLUSIONS_2026-09-24.md` for the detailed plan.

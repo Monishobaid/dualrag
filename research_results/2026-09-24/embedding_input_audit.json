@@ -1,0 +1,830 @@
+[
+  {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "label": "MiniLM",
+    "title_prefix": false,
+    "cohort": "original50",
+    "encoder_limit": 256,
+    "paragraphs": 500,
+    "overflow_count": 17,
+    "max_tokens": 703,
+    "overflow": [
+      {
+        "id": "5ab985eb554299131ca42360",
+        "title": "Lophodermium",
+        "tokens": 273,
+        "gold_title": false
+      },
+      {
+        "id": "5ae361605542994393b9e69b",
+        "title": "Bibhu Prasad Tripathy",
+        "tokens": 310,
+        "gold_title": false
+      },
+      {
+        "id": "5ab7f6d35542993667794070",
+        "title": "In\u00e9z",
+        "tokens": 302,
+        "gold_title": false
+      },
+      {
+        "id": "5ab7f6d35542993667794070",
+        "title": "Hip hop",
+        "tokens": 303,
+        "gold_title": false
+      },
+      {
+        "id": "5ac3d9135542995c82c4ac4c",
+        "title": "Franklin Street Presbyterian Church and Parsonage",
+        "tokens": 680,
+        "gold_title": false
+      },
+      {
+        "id": "5ae129115542990adbacf722",
+        "title": "Bakhmull",
+        "tokens": 483,
+        "gold_title": false
+      },
+      {
+        "id": "5ae129115542990adbacf722",
+        "title": "Crystal Gayle singles discography",
+        "tokens": 267,
+        "gold_title": false
+      },
+      {
+        "id": "5a86769c5542994775f60776",
+        "title": "Jos\u00e9 Mar\u00eda Gironella",
+        "tokens": 306,
+        "gold_title": false
+      },
+      {
+        "id": "5ab31864554299233954ff06",
+        "title": "Keyboard glockenspiel",
+        "tokens": 265,
+        "gold_title": false
+      },
+      {
+        "id": "5ae382ee5542992e3233c430",
+        "title": "August Otto R\u00fchle von Lilienstern",
+        "tokens": 288,
+        "gold_title": false
+      },
+      {
+        "id": "5ac35a7e554299741d48a257",
+        "title": "Konkomba people",
+        "tokens": 703,
+        "gold_title": false
+      },
+      {
+        "id": "5ade25ed5542997c77aded70",
+        "title": "October Manifesto",
+        "tokens": 276,
+        "gold_title": false
+      },
+      {
+        "id": "5ae12a4b55429920d52342df",
+        "title": "Mahsud",
+        "tokens": 299,
+        "gold_title": false
+      },
+      {
+        "id": "5ae12a4b55429920d52342df",
+        "title": "Lunda Norte Province",
+        "tokens": 304,
+        "gold_title": false
+      },
+      {
+        "id": "5ae22eae554299495565da30",
+        "title": "Tarrafal de S\u00e3o Nicolau, Cape Verde",
+        "tokens": 301,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1443855429920d5234362",
+        "title": "Stepan Shutov",
+        "tokens": 327,
+        "gold_title": false
+      },
+      {
+        "id": "5ac54c435542993e66e822d1",
+        "title": "Wesley Englehorn",
+        "tokens": 465,
+        "gold_title": false
+      }
+    ]
+  },
+  {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "label": "MiniLM",
+    "title_prefix": false,
+    "cohort": "confirmation100",
+    "encoder_limit": 256,
+    "paragraphs": 1000,
+    "overflow_count": 41,
+    "max_tokens": 1509,
+    "overflow": [
+      {
+        "id": "5a7252db5542990c210a4104",
+        "title": "Clayton Fountain",
+        "tokens": 262,
+        "gold_title": false
+      },
+      {
+        "id": "5a7252db5542990c210a4104",
+        "title": "Zeresenay Alemseged",
+        "tokens": 299,
+        "gold_title": false
+      },
+      {
+        "id": "5a75447b55429974ef308cbf",
+        "title": "HMS Illustrious (87)",
+        "tokens": 260,
+        "gold_title": false
+      },
+      {
+        "id": "5ab29e87554299194fa9346e",
+        "title": "List of Green Bay Packers stadiums",
+        "tokens": 273,
+        "gold_title": false
+      },
+      {
+        "id": "5a85f8665542994775f606ce",
+        "title": "Fort Bend",
+        "tokens": 316,
+        "gold_title": false
+      },
+      {
+        "id": "5a8ceb7a554299441c6b9f7b",
+        "title": "Trucks and Tractor Power",
+        "tokens": 285,
+        "gold_title": false
+      },
+      {
+        "id": "5ac3d2a6554299204fd21e8c",
+        "title": "Duane Capizzi",
+        "tokens": 260,
+        "gold_title": false
+      },
+      {
+        "id": "5ab3eeb5554299233954fff4",
+        "title": "Bombaiyer Bombete (film)",
+        "tokens": 442,
+        "gold_title": false
+      },
+      {
+        "id": "5abaf4535542996cc5e49f35",
+        "title": "Josh Holliday",
+        "tokens": 471,
+        "gold_title": false
+      },
+      {
+        "id": "5ade78e255429939a52fe8d0",
+        "title": "Marblemedia",
+        "tokens": 368,
+        "gold_title": false
+      },
+      {
+        "id": "5a8026a05542992e7d278df8",
+        "title": "Masta Ace Incorporated",
+        "tokens": 363,
+        "gold_title": false
+      },
+      {
+        "id": "5a84c4bb5542991dd0999dec",
+        "title": "Congenital syphilis",
+        "tokens": 263,
+        "gold_title": false
+      },
+      {
+        "id": "5ae4eb9255429908b63264ba",
+        "title": "Bimal N. Patel",
+        "tokens": 320,
+        "gold_title": false
+      },
+      {
+        "id": "5ae4eb9255429908b63264ba",
+        "title": "William N. Rhodes",
+        "tokens": 331,
+        "gold_title": false
+      },
+      {
+        "id": "5a8d0c74554299585d9e37a1",
+        "title": "Kosasthalaiyar River",
+        "tokens": 346,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1b1aa5542997283cd223f",
+        "title": "1984 NBA draft",
+        "tokens": 298,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1b1aa5542997283cd223f",
+        "title": "1970 NBA Expansion Draft",
+        "tokens": 280,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1b1aa5542997283cd223f",
+        "title": "Lakers\u2013Clippers rivalry",
+        "tokens": 330,
+        "gold_title": false
+      },
+      {
+        "id": "5ae7f1e65542994a481bbe4a",
+        "title": "Bennington, Idaho",
+        "tokens": 573,
+        "gold_title": false
+      },
+      {
+        "id": "5a89f58f5542992e4fca84af",
+        "title": "Mulankunnathukavu railway station",
+        "tokens": 382,
+        "gold_title": false
+      },
+      {
+        "id": "5ab84c6955429916710eb021",
+        "title": "L'Orfeo discography",
+        "tokens": 356,
+        "gold_title": false
+      },
+      {
+        "id": "5ab84c6955429916710eb021",
+        "title": "Symphony in C (Bizet)",
+        "tokens": 272,
+        "gold_title": false
+      },
+      {
+        "id": "5ae5669755429960a22e02ec",
+        "title": "Brad Parscale",
+        "tokens": 261,
+        "gold_title": false
+      },
+      {
+        "id": "5ab531cc5542990594ba9d23",
+        "title": "Park City Center",
+        "tokens": 259,
+        "gold_title": false
+      },
+      {
+        "id": "5a738bd0554299623ed4abee",
+        "title": "Alexander Radvilovich",
+        "tokens": 273,
+        "gold_title": false
+      },
+      {
+        "id": "5a738bd0554299623ed4abee",
+        "title": "Musical composition",
+        "tokens": 325,
+        "gold_title": false
+      },
+      {
+        "id": "5a738bd0554299623ed4abee",
+        "title": "Dmitri Capyrin",
+        "tokens": 343,
+        "gold_title": false
+      },
+      {
+        "id": "5a8f137355429918e830d180",
+        "title": "Barony of Bannockburn",
+        "tokens": 339,
+        "gold_title": false
+      },
+      {
+        "id": "5ac42f42554299076e296d88",
+        "title": "War Eagle, Arkansas (film)",
+        "tokens": 298,
+        "gold_title": false
+      },
+      {
+        "id": "5ac02c6b554299294b218f38",
+        "title": "List of awards and nominations received by Lecrae",
+        "tokens": 274,
+        "gold_title": false
+      },
+      {
+        "id": "5a90970d5542995651fb51a5",
+        "title": "Concinnia spinosa",
+        "tokens": 334,
+        "gold_title": false
+      },
+      {
+        "id": "5a90970d5542995651fb51a5",
+        "title": "Playa cativo",
+        "tokens": 480,
+        "gold_title": false
+      },
+      {
+        "id": "5ae37e6e5542992f92d822e0",
+        "title": "Leonard Lomell",
+        "tokens": 264,
+        "gold_title": false
+      },
+      {
+        "id": "5ab726415542993667793f52",
+        "title": "Silver Star (NZR train)",
+        "tokens": 328,
+        "gold_title": false
+      },
+      {
+        "id": "5a813e1b55429903bc27b958",
+        "title": "Wild about Nothing",
+        "tokens": 262,
+        "gold_title": false
+      },
+      {
+        "id": "5abec9b25542997ec76fd366",
+        "title": "Elemund",
+        "tokens": 308,
+        "gold_title": false
+      },
+      {
+        "id": "5ab3f24c5542992ade7c6eef",
+        "title": "Wilson Sawyer",
+        "tokens": 426,
+        "gold_title": false
+      },
+      {
+        "id": "5a722a6855429971e9dc9320",
+        "title": "Gregory Shaffer",
+        "tokens": 262,
+        "gold_title": false
+      },
+      {
+        "id": "5a722a6855429971e9dc9320",
+        "title": "Loan modification in the United States",
+        "tokens": 1509,
+        "gold_title": false
+      },
+      {
+        "id": "5a9051d955429916514e7474",
+        "title": "Sameer Iqbal Patel",
+        "tokens": 286,
+        "gold_title": false
+      },
+      {
+        "id": "5a9051d955429916514e7474",
+        "title": "Debashree Roy filmography",
+        "tokens": 528,
+        "gold_title": false
+      }
+    ]
+  },
+  {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "label": "MiniLM",
+    "title_prefix": true,
+    "cohort": "original50",
+    "encoder_limit": 256,
+    "paragraphs": 500,
+    "overflow_count": 18,
+    "max_tokens": 707,
+    "overflow": [
+      {
+        "id": "5ab985eb554299131ca42360",
+        "title": "Lophodermium",
+        "tokens": 277,
+        "gold_title": false
+      },
+      {
+        "id": "5ae361605542994393b9e69b",
+        "title": "Bibhu Prasad Tripathy",
+        "tokens": 316,
+        "gold_title": false
+      },
+      {
+        "id": "5a7557d75542992d0ec05f68",
+        "title": "Timothy Olyphant",
+        "tokens": 259,
+        "gold_title": false
+      },
+      {
+        "id": "5ab7f6d35542993667794070",
+        "title": "In\u00e9z",
+        "tokens": 304,
+        "gold_title": false
+      },
+      {
+        "id": "5ab7f6d35542993667794070",
+        "title": "Hip hop",
+        "tokens": 305,
+        "gold_title": false
+      },
+      {
+        "id": "5ac3d9135542995c82c4ac4c",
+        "title": "Franklin Street Presbyterian Church and Parsonage",
+        "tokens": 688,
+        "gold_title": false
+      },
+      {
+        "id": "5ae129115542990adbacf722",
+        "title": "Bakhmull",
+        "tokens": 487,
+        "gold_title": false
+      },
+      {
+        "id": "5ae129115542990adbacf722",
+        "title": "Crystal Gayle singles discography",
+        "tokens": 273,
+        "gold_title": false
+      },
+      {
+        "id": "5a86769c5542994775f60776",
+        "title": "Jos\u00e9 Mar\u00eda Gironella",
+        "tokens": 311,
+        "gold_title": false
+      },
+      {
+        "id": "5ab31864554299233954ff06",
+        "title": "Keyboard glockenspiel",
+        "tokens": 271,
+        "gold_title": false
+      },
+      {
+        "id": "5ae382ee5542992e3233c430",
+        "title": "August Otto R\u00fchle von Lilienstern",
+        "tokens": 297,
+        "gold_title": false
+      },
+      {
+        "id": "5ac35a7e554299741d48a257",
+        "title": "Konkomba people",
+        "tokens": 707,
+        "gold_title": false
+      },
+      {
+        "id": "5ade25ed5542997c77aded70",
+        "title": "October Manifesto",
+        "tokens": 278,
+        "gold_title": false
+      },
+      {
+        "id": "5ae12a4b55429920d52342df",
+        "title": "Mahsud",
+        "tokens": 302,
+        "gold_title": false
+      },
+      {
+        "id": "5ae12a4b55429920d52342df",
+        "title": "Lunda Norte Province",
+        "tokens": 308,
+        "gold_title": false
+      },
+      {
+        "id": "5ae22eae554299495565da30",
+        "title": "Tarrafal de S\u00e3o Nicolau, Cape Verde",
+        "tokens": 311,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1443855429920d5234362",
+        "title": "Stepan Shutov",
+        "tokens": 331,
+        "gold_title": false
+      },
+      {
+        "id": "5ac54c435542993e66e822d1",
+        "title": "Wesley Englehorn",
+        "tokens": 469,
+        "gold_title": false
+      }
+    ]
+  },
+  {
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "label": "MiniLM",
+    "title_prefix": true,
+    "cohort": "confirmation100",
+    "encoder_limit": 256,
+    "paragraphs": 1000,
+    "overflow_count": 44,
+    "max_tokens": 1515,
+    "overflow": [
+      {
+        "id": "5a7252db5542990c210a4104",
+        "title": "Clayton Fountain",
+        "tokens": 264,
+        "gold_title": false
+      },
+      {
+        "id": "5a7252db5542990c210a4104",
+        "title": "Zeresenay Alemseged",
+        "tokens": 306,
+        "gold_title": false
+      },
+      {
+        "id": "5a75447b55429974ef308cbf",
+        "title": "HMS Illustrious (87)",
+        "tokens": 265,
+        "gold_title": false
+      },
+      {
+        "id": "5ab29e87554299194fa9346e",
+        "title": "List of Green Bay Packers stadiums",
+        "tokens": 279,
+        "gold_title": false
+      },
+      {
+        "id": "5a85f8665542994775f606ce",
+        "title": "Fort Bend",
+        "tokens": 318,
+        "gold_title": false
+      },
+      {
+        "id": "5a8ceb7a554299441c6b9f7b",
+        "title": "Trucks and Tractor Power",
+        "tokens": 289,
+        "gold_title": false
+      },
+      {
+        "id": "5ac3d2a6554299204fd21e8c",
+        "title": "Duane Capizzi",
+        "tokens": 264,
+        "gold_title": false
+      },
+      {
+        "id": "5ab3eeb5554299233954fff4",
+        "title": "Bombaiyer Bombete (film)",
+        "tokens": 450,
+        "gold_title": false
+      },
+      {
+        "id": "5abaf4535542996cc5e49f35",
+        "title": "Josh Holliday",
+        "tokens": 475,
+        "gold_title": false
+      },
+      {
+        "id": "5ade78e255429939a52fe8d0",
+        "title": "Marblemedia",
+        "tokens": 370,
+        "gold_title": false
+      },
+      {
+        "id": "5a8026a05542992e7d278df8",
+        "title": "Masta Ace Incorporated",
+        "tokens": 367,
+        "gold_title": false
+      },
+      {
+        "id": "5a84c4bb5542991dd0999dec",
+        "title": "Congenital syphilis",
+        "tokens": 267,
+        "gold_title": false
+      },
+      {
+        "id": "5ae4eb9255429908b63264ba",
+        "title": "Bimal N. Patel",
+        "tokens": 325,
+        "gold_title": false
+      },
+      {
+        "id": "5ae4eb9255429908b63264ba",
+        "title": "William N. Rhodes",
+        "tokens": 335,
+        "gold_title": false
+      },
+      {
+        "id": "5a7365b155429901807db02a",
+        "title": "William Brown (Royal Navy officer)",
+        "tokens": 258,
+        "gold_title": false
+      },
+      {
+        "id": "5a8d0c74554299585d9e37a1",
+        "title": "Kosasthalaiyar River",
+        "tokens": 352,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1b1aa5542997283cd223f",
+        "title": "1984 NBA draft",
+        "tokens": 301,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1b1aa5542997283cd223f",
+        "title": "1970 NBA Expansion Draft",
+        "tokens": 284,
+        "gold_title": false
+      },
+      {
+        "id": "5ae1b1aa5542997283cd223f",
+        "title": "Lakers\u2013Clippers rivalry",
+        "tokens": 335,
+        "gold_title": false
+      },
+      {
+        "id": "5ae7f1e65542994a481bbe4a",
+        "title": "Bennington, Idaho",
+        "tokens": 577,
+        "gold_title": false
+      },
+      {
+        "id": "5a89f58f5542992e4fca84af",
+        "title": "Mulankunnathukavu railway station",
+        "tokens": 391,
+        "gold_title": false
+      },
+      {
+        "id": "5ab84c6955429916710eb021",
+        "title": "L'Orfeo discography",
+        "tokens": 363,
+        "gold_title": false
+      },
+      {
+        "id": "5ab84c6955429916710eb021",
+        "title": "Symphony in C (Bizet)",
+        "tokens": 280,
+        "gold_title": false
+      },
+      {
+        "id": "5ae5669755429960a22e02ec",
+        "title": "Brad Parscale",
+        "tokens": 265,
+        "gold_title": false
+      },
+      {
+        "id": "5ab531cc5542990594ba9d23",
+        "title": "Park City Center",
+        "tokens": 262,
+        "gold_title": false
+      },
+      {
+        "id": "5a738bd0554299623ed4abee",
+        "title": "Alexander Radvilovich",
+        "tokens": 278,
+        "gold_title": false
+      },
+      {
+        "id": "5a738bd0554299623ed4abee",
+        "title": "Musical composition",
+        "tokens": 327,
+        "gold_title": false
+      },
+      {
+        "id": "5a738bd0554299623ed4abee",
+        "title": "Dmitri Capyrin",
+        "tokens": 347,
+        "gold_title": false
+      },
+      {
+        "id": "5a8f137355429918e830d180",
+        "title": "Barony of Bannockburn",
+        "tokens": 344,
+        "gold_title": false
+      },
+      {
+        "id": "5ac42f42554299076e296d88",
+        "title": "War Eagle, Arkansas (film)",
+        "tokens": 305,
+        "gold_title": false
+      },
+      {
+        "id": "5ac02c6b554299294b218f38",
+        "title": "List of awards and nominations received by Lecrae",
+        "tokens": 284,
+        "gold_title": false
+      },
+      {
+        "id": "5a90970d5542995651fb51a5",
+        "title": "Concinnia spinosa",
+        "tokens": 339,
+        "gold_title": false
+      },
+      {
+        "id": "5a90970d5542995651fb51a5",
+        "title": "Playa cativo",
+        "tokens": 484,
+        "gold_title": false
+      },
+      {
+        "id": "5ae37e6e5542992f92d822e0",
+        "title": "Leonard Lomell",
+        "tokens": 268,
+        "gold_title": false
+      },
+      {
+        "id": "5a7d9bc65542990b8f5039cb",
+        "title": "Oklahoma Sooners football",
+        "tokens": 257,
+        "gold_title": true
+      },
+      {
+        "id": "5ab726415542993667793f52",
+        "title": "Silver Star (NZR train)",
+        "tokens": 335,
+        "gold_title": false
+      },
+      {
+        "id": "5a813e1b55429903bc27b958",
+        "title": "Wild about Nothing",
+        "tokens": 265,
+        "gold_title": false
+      },
+      {
+        "id": "5abec9b25542997ec76fd366",
+        "title": "Elemund",
+        "tokens": 311,
+        "gold_title": false
+      },
+      {
+        "id": "5ab3f24c5542992ade7c6eef",
+        "title": "Wilson Sawyer",
+        "tokens": 428,
+        "gold_title": false
+      },
+      {
+        "id": "5a722a6855429971e9dc9320",
+        "title": "Legal history",
+        "tokens": 257,
+        "gold_title": false
+      },
+      {
+        "id": "5a722a6855429971e9dc9320",
+        "title": "Gregory Shaffer",
+        "tokens": 265,
+        "gold_title": false
+      },
+      {
+        "id": "5a722a6855429971e9dc9320",
+        "title": "Loan modification in the United States",
+        "tokens": 1515,
+        "gold_title": false
+      },
+      {
+        "id": "5a9051d955429916514e7474",
+        "title": "Sameer Iqbal Patel",
+        "tokens": 290,
+        "gold_title": false
+      },
+      {
+        "id": "5a9051d955429916514e7474",
+        "title": "Debashree Roy filmography",
+        "tokens": 535,
+        "gold_title": false
+      }
+    ]
+  },
+  {
+    "model": "BAAI/bge-base-en-v1.5",
+    "revision": "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a",
+    "label": "BGE-base",
+    "title_prefix": true,
+    "cohort": "original50",
+    "encoder_limit": 512,
+    "paragraphs": 500,
+    "overflow_count": 2,
+    "max_tokens": 707,
+    "overflow": [
+      {
+        "id": "5ac3d9135542995c82c4ac4c",
+        "title": "Franklin Street Presbyterian Church and Parsonage",
+        "tokens": 688,
+        "gold_title": false
+      },
+      {
+        "id": "5ac35a7e554299741d48a257",
+        "title": "Konkomba people",
+        "tokens": 707,
+        "gold_title": false
+      }
+    ]
+  },
+  {
+    "model": "BAAI/bge-base-en-v1.5",
+    "revision": "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a",
+    "label": "BGE-base",
+    "title_prefix": true,
+    "cohort": "confirmation100",
+    "encoder_limit": 512,
+    "paragraphs": 1000,
+    "overflow_count": 3,
+    "max_tokens": 1515,
+    "overflow": [
+      {
+        "id": "5ae7f1e65542994a481bbe4a",
+        "title": "Bennington, Idaho",
+        "tokens": 577,
+        "gold_title": false
+      },
+      {
+        "id": "5a722a6855429971e9dc9320",
+        "title": "Loan modification in the United States",
+        "tokens": 1515,
+        "gold_title": false
+      },
+      {
+        "id": "5a9051d955429916514e7474",
+        "title": "Debashree Roy filmography",
+        "tokens": 535,
+        "gold_title": false
+      }
+    ]
+  }
+]

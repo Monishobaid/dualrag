@@ -1,11 +1,32 @@
 # Dual Stopping Iterative RAG on HotpotQA
 
 A research implementation of iterative retrieval-augmented generation on the
-HotpotQA distractor dataset. The default configuration uses
-`Qwen/Qwen2.5-3B-Instruct`; the Renku benchmark can select
-`Qwen/Qwen2.5-7B-Instruct` explicitly.
+HotpotQA distractor dataset. The September 24 study uses
+`Qwen/Qwen2.5-7B-Instruct` and `Qwen/Qwen2.5-14B-Instruct`. The historical
+`run_experiment.py` runner still defaults to 3B unless a model is supplied;
+the new `research_experiment.py` runner defaults to 7B.
 
-## Overview
+## Current research results
+
+The September 24 experiments evaluate Qwen2.5 **7B and 14B Instruct**, a short
+cited-answer reader, stronger embeddings, and a separate prompted sufficiency
+critic. They use the original exploratory50 and a disjoint frozen100 cohort.
+These are instruction models, not Qwen3 thinking models. See:
+
+- [Measured results and paired uncertainty](docs/RESULTS_2026-09-24.md)
+- [Research conclusions and next experiments](docs/RESEARCH_CONCLUSIONS_2026-09-24.md)
+- [Paper-to-code mapping and frozen protocol](docs/RESEARCH_REVIEW_2026-09-24.md)
+- [Manual error review](docs/ERROR_REVIEW_2026-09-24.md)
+- [Critic diagnostics](docs/CRITIC_DIAGNOSTICS_2026-09-24.md)
+- [Dataset slices](docs/DATASET_SLICES_2026-09-24.md) and [embedding input audit](docs/EMBEDDING_AUDIT_2026-09-24.md)
+- [Running research log](RESEARCH_LOG.md)
+
+The historical pipeline below remains runnable for comparison. The newer
+`scripts/research_experiment.py` entry point is described at the end of this
+README. The new reader does not use within-answer reasoning stopping; lower
+token counts from its shorter outputs must not be attributed to that mechanism.
+
+## Historical pipeline overview
 
 This system implements iterative multi-hop retrieval-augmented generation with
 two optional early stopping mechanisms:
@@ -443,10 +464,12 @@ PyTorch and Transformers dependencies are installed.
 
 ## Performance claims
 
-Results depend on the model, dataset subset, prompt, and stopping thresholds. The
-repository does not ship a validated benchmark, so accuracy and token-reduction
-claims must be measured from matched runs on the same examples. A one-example GPU
-smoke test is only a wiring check, not a performance result.
+Results depend on the model, dataset subset, prompt, and stopping thresholds.
+The repository includes measured Renku artifacts and paired comparisons under
+`research_results/2026-09-24`; these are small HotpotQA distractor evaluations,
+not independent replication or evidence of state-of-the-art performance.
+Accuracy and token-reduction claims require matched runs on the same examples.
+A one-example GPU smoke test is only a wiring check, not a performance result.
 
 ## Citation
 
@@ -487,3 +510,27 @@ It refuses to overwrite research runs. Full prompts and raw generations are
 saved under each run's `traces.jsonl`; compact shareable artifacts are exported
 to `research_results/2026-09-24`. The original50 is exploratory. A separately
 frozen disjoint100 sample is used for confirmation; see the protocol for limits.
+
+To reproduce the confirmation comparison from the committed manifest without
+depending on the train smoke subset, use a new output directory:
+
+```bash
+python scripts/research_experiment.py \
+  --ids research_results/2026-09-24/research_confirm100_ids.json \
+  --model Qwen/Qwen2.5-7B-Instruct \
+  --arms top5 all_context adaptive \
+  --output outputs/confirmation100_repeat
+```
+
+The default dataset path is `data/hotpotqa/hotpot_dev_distractor_v1.json`.
+Use `--model Qwen/Qwen2.5-14B-Instruct` for the larger generator; use `--arms top9
+ranked_all` for the static budget controls. Published runs keep MiniLM fixed for
+these comparisons. Model revisions and library versions are recorded in each
+run's protocol; pin those revisions/packages when reproducing the exact run.
+
+After exporting completed runs, regenerate the analysis with
+`python scripts/report_research_results.py` and
+`python scripts/analyze_research_critic.py`. The latter also needs the original
+dev dataset. `scripts/plot_research_results.py` optionally requires Matplotlib
+and produces PNG/PDF figures only when all ten comparison arms are present.
+The 14B top9/ranked-all arms are explicitly marked as post-hoc controls.

@@ -1,0 +1,11 @@
+{
+  "records": 7405,
+  "local_file_sha256": "4e9ecb5c8d3b719f624d66b60f8d56bf227f03914f5f0753d6fa1b359d7104ea",
+  "renku_file_sha256": "e3da074df24e8369009918aa5cdbdd254dadcde4c63f7569d36afd6f2268caa8",
+  "canonical_sha256_both_copies": "8c45526920c1b11d0f16d59775c8a53b7530a48a6309f423c8f79cecbe9e8b3c",
+  "canonical_encoding": "json.dumps(data,sort_keys=True,separators=(comma,colon),ensure_ascii=False).encode(utf-8)",
+  "verification": "Same canonical hash independently computed and read in Renku terminal on 2026-09-24. Byte serialization differs; parsed records including list order are identical.",
+  "cohorts_disjoint": true,
+  "original_n": 50,
+  "confirmation_n": 100
+}
