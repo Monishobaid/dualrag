@@ -118,3 +118,6 @@ runs/
 !requirements.txt
 !**/config.py
 .DS_Store
+
+# Small research metrics/protocol artifacts are intentionally versioned.
+!research_results/**/*.json

@@ -130,3 +130,16 @@ A practical success criterion here is a reproducible accuracy/cost improvement
 over our corrected reader and simple all-context baseline. If the critic loses,
 keep the simpler reader and report the negative result instead of changing the
 story or tuning until the same 50 examples look good.
+
+### Supplementary controls specified before confirmation results
+
+The original50 adaptive result motivates checking two alternative explanations:
+it reads more than five paragraphs, and it orders evidence by retrieval rather
+than dataset order. Before observing confirmation100 results, add **static top9**
+and **all ten in retrieval order** on the same confirmation100 IDs with 7B.
+These use one reader call and no critic. Their prompts and scoring are unchanged.
+They test whether extra evidence or ordering explains the apparent critic gain.
+Also rerun the current raw-prompt legacy reader on original50: the historical
+revision predates a small legacy prompt change, so history versus current chat
+is not a perfectly isolated chat-template ablation. These are additional
+prespecified controls, not tuning of the frozen prompts or thresholds.

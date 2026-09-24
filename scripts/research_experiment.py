@@ -70,7 +70,8 @@ def run_reader(question, paragraphs, arm, ranker, llm, budget=192):
     else:
         evidence, query = [], question
         for hop in range(3 if arm == 'adaptive' else 1):
-            ranked = ranker.rank(query, paragraphs, top_k=5 if hop == 0 else 2)
+            initial_k = 9 if arm == 'top9' else len(paragraphs) if arm == 'ranked_all' else 5
+            ranked = ranker.rank(query, paragraphs, top_k=initial_k if hop == 0 else 2)
             fresh = [x['paragraph'] for x in ranked if x['paragraph']['_pid'] not in seen]
             # Rank the remaining pool when a query repeats earlier hits. This
             # bounds the loop without silently resetting the evidence history.
@@ -80,7 +81,7 @@ def run_reader(question, paragraphs, arm, ranker, llm, budget=192):
             evidence.extend(fresh)
             seen.update(p['_pid'] for p in fresh)
             hops.append({'query': query, 'titles': [p['title'] for p in fresh]})
-            reason = 'fixed_top5'
+            reason = f'fixed_top{initial_k}'
             if arm != 'adaptive':
                 break
             obj, sources, call = call_model(llm, question, evidence, CRITIC_SYSTEM, 'critic', budget)
@@ -131,7 +132,7 @@ def main():
     p.add_argument('--retrieval', choices=['dense','bm25','hybrid'], default='dense')
     p.add_argument('--title-prefix', action='store_true')
     p.add_argument('--reranker', default=None)
-    p.add_argument('--arms', nargs='+', choices=['top5','all_context','oracle','adaptive'],
+    p.add_argument('--arms', nargs='+', choices=['top5','top9','ranked_all','all_context','oracle','adaptive'],
                    default=['top5','all_context','oracle','adaptive'])
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--max-new-tokens', type=int, default=192)

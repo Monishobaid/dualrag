@@ -5,13 +5,14 @@ from pathlib import Path
 import shutil
 import subprocess
 root=Path('research_results/2026-09-24');root.mkdir(parents=True,exist_ok=True)
-for run in sorted(Path('outputs').glob('research*')):
+historical = ['dense_fixed50_e9f673f','hybrid_fixed50_e9f673f','hybrid_rerank_fixed50_e9f673f','oracle_evidence50_e9f673f','dense_reader50_615a16f']
+for run in sorted(Path('outputs').glob('research*')) + [Path('outputs')/name for name in historical]:
     if not run.is_dir(): continue
     dest=root/run.name;dest.mkdir(exist_ok=True)
     for name in ['protocol.json','summary.json','config.json','metrics.json','predictions.json']:
         if (run/name).is_file(): shutil.copyfile(run/name,dest/name)
     for arm in [run]+[x for x in run.iterdir() if x.is_dir()]:
-        if not (arm/'traces.jsonl').exists(): continue
+        if not (arm/'traces.jsonl').exists() or not (arm/'metrics.json').exists(): continue
         d=dest if arm==run else dest/arm.name;d.mkdir(exist_ok=True)
         for name in ['metrics.json','predictions.json']:
             if (arm/name).exists():shutil.copyfile(arm/name,d/name)
