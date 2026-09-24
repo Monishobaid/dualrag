@@ -1,2 +1,6 @@
-Source: outputs/research_suite_20260924.log, before GPU suite
+Initial suite: 12 tests passed before additional regression tests were added.
+Final Renku verification:
+----------------------------------------------------------------------
+Ran 18 tests in 0.003s
+
 OK
