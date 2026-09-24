@@ -80,6 +80,8 @@ def run_single_experiment(args, method, base_run_id):
         model_name=args.model_name,
         embed_model_name=args.embed_model_name,
         device=args.device,
+        use_chat_template=args.use_chat_template,
+        max_input_tokens=args.max_input_tokens,
         dataset_path=args.dataset_path,
         split=args.split,
         max_examples=args.max_examples,
@@ -125,12 +127,13 @@ def run_single_experiment(args, method, base_run_id):
     
     logger.info("Initializing models...")
     embedder = Embedder(model_name=config.embed_model_name, device=config.device)
-    cache = EmbeddingCache(cache_dir=config.cache_dir)
+    cache = EmbeddingCache(cache_dir=config.cache_dir, namespace=config.embed_model_name)
     
     if config.model_name in AzureOpenAIModel.CONFIGS or config.model_name.lower().startswith(('gpt', 'azure')):
         llm = AzureOpenAIModel(model_name=config.model_name, device=config.device)
     else:
-        llm = QwenModel(model_name=config.model_name, device=config.device)
+        llm = QwenModel(model_name=config.model_name, device=config.device,
+                        use_chat_template=config.use_chat_template, max_input_tokens=config.max_input_tokens)
     
     rag = IterativeRAG(
         llm_model=llm,
@@ -311,6 +314,8 @@ def main():
     parser.add_argument('--convergence_k', type=int, default=2)
     
     # Model args
+    parser.add_argument('--use_chat_template', action='store_true')
+    parser.add_argument('--max_input_tokens', type=int, default=8192)
     parser.add_argument('--model_name', type=str, default='Qwen/Qwen2.5-3B-Instruct')
     parser.add_argument('--embed_model_name', type=str, default='sentence-transformers/all-MiniLM-L6-v2')
     parser.add_argument('--device', type=str, default='auto')

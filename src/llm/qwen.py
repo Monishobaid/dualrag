@@ -19,7 +19,9 @@ class QwenModel:
         self,
         model_name: str = "Qwen/Qwen2.5-3B-Instruct",
         device: str = "auto",
-        load_in_8bit: bool = False
+        load_in_8bit: bool = False,
+        use_chat_template: bool = False,
+        max_input_tokens: int = 8192
     ):
         """
         Initialize Qwen model.
@@ -31,6 +33,9 @@ class QwenModel:
         """
         self.model_name = model_name
         self.device = device
+        self.use_chat_template = use_chat_template
+        self.max_input_tokens = max_input_tokens
+        self.last_generation = {}
         
         logging.info(f"Loading Qwen model: {model_name}")
         
@@ -69,6 +74,31 @@ class QwenModel:
         
         logging.info(f"Model loaded successfully on device: {self.model.device}")
     
+    def prepare_inputs(self, prompt, system_message=None):
+        """Use Qwen's official chat format; reject oversized corrected inputs.
+
+        Historical control: tokenizer(raw_prompt, truncation=True, max_length=4096).
+        That can cut evidence and encourages continuation rather than an assistant
+        reply. Keep it only when use_chat_template=False for the old ablation.
+        Source: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct#quickstart
+        """
+        if self.use_chat_template:
+            messages = []
+            if system_message:
+                messages.append({"role": "system", "content": system_message})
+            messages.append({"role": "user", "content": prompt})
+            prompt = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True)
+            inputs = self.tokenizer(prompt, return_tensors="pt", add_special_tokens=False)
+            if inputs["input_ids"].shape[1] > self.max_input_tokens:
+                raise ValueError("Context exceeds explicit input budget; evidence was not silently truncated")
+        else:
+            if system_message:
+                prompt = f"{system_message}\n\n{prompt}"
+            inputs = self.tokenizer(prompt, return_tensors="pt", padding=True,
+                                    truncation=True, max_length=4096)
+        return inputs.to(self.model.device)
+
     def generate(
         self,
         prompt: str,
@@ -92,45 +122,10 @@ class QwenModel:
         Returns:
             Generated text
         """
-        # Tokenize
-        inputs = self.tokenizer(
-            prompt,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=4096
-        ).to(self.model.device)
-        
-        # Generate
-        with torch.inference_mode():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                do_sample=temperature > 0,
-                pad_token_id=self.tokenizer.pad_token_id,
-                eos_token_id=self.tokenizer.eos_token_id,
-            )
-        
-        # Decode
-        generated_text = self.tokenizer.decode(
-            outputs[0],
-            skip_special_tokens=True
-        )
-        
-        # Remove prompt if needed
-        if not return_full_text:
-            generated_text = generated_text[len(prompt):].strip()
-        
-        # Apply stop strings
-        if stop_strings:
-            for stop_str in stop_strings:
-                if stop_str in generated_text:
-                    generated_text = generated_text.split(stop_str)[0]
-        
-        return generated_text
-    
+        text, _ = self.generate_with_token_count(
+            prompt, max_new_tokens, temperature, top_p, stop_strings)
+        return prompt + text if return_full_text else text
+
     def generate_with_token_count(
         self,
         prompt: str,
@@ -139,6 +134,7 @@ class QwenModel:
         top_p: float = 0.9,
         stop_strings: Optional[list] = None,
         response_format: Optional[dict] = None,
+        system_message: Optional[str] = None,
     ) -> tuple:
         """
         Generate text and return token count.
@@ -152,14 +148,8 @@ class QwenModel:
         Returns:
             (generated_text, num_tokens_generated)
         """
-        inputs = self.tokenizer(
-            prompt,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=4096
-        ).to(self.model.device)
-        
+        inputs = self.prepare_inputs(prompt, system_message)
+
         input_length = inputs['input_ids'].shape[1]
         
         with torch.inference_mode():
@@ -181,11 +171,15 @@ class QwenModel:
             skip_special_tokens=True
         )
 
+        self.last_generation = {
+            "input_tokens": int(input_length), "generated_tokens": int(num_tokens_generated),
+            "hit_token_limit": num_tokens_generated >= max_new_tokens,
+            "raw_output": generated_text,
+        }
         if stop_strings:
             for stop_str in stop_strings:
                 if stop_str in generated_text:
                     generated_text = generated_text.split(stop_str)[0]
-        
         return generated_text, num_tokens_generated
     
     def count_tokens(self, text: str) -> int:

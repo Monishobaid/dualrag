@@ -11,7 +11,7 @@ import logging
 class EmbeddingCache:
     """Cache for paragraph embeddings."""
     
-    def __init__(self, cache_dir: str = "runs/cache_embeddings"):
+    def __init__(self, cache_dir: str = "runs/cache_embeddings", namespace: str = "legacy"):
         """
         Initialize cache.
         
@@ -21,7 +21,9 @@ class EmbeddingCache:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache = {}
-        self.cache_file = self.cache_dir / "embeddings.pkl"
+        # Never reuse MiniLM vectors for another checkpoint, even at the same dimension.
+        digest = hashlib.sha256(namespace.encode()).hexdigest()[:20]
+        self.cache_file = self.cache_dir / f"embeddings-{digest}.pkl"
         
         # Load existing cache
         if self.cache_file.exists():

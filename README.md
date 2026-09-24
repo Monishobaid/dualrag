@@ -463,3 +463,27 @@ If you use this codebase, please cite:
 ## License
 
 MIT License - see LICENSE file for details.
+
+## September 24 research experiments
+
+The new literature-driven experiment is described in
+[the research review](docs/RESEARCH_REVIEW_2026-09-24.md). It keeps the historical
+reader available and tests corrected Qwen chat formatting, a short cited-answer
+reader, all-context/oracle controls, and a prompted evidence-sufficiency critic.
+It is **not** a trained Stop-RAG or Self-RAG reproduction. Current historical
+candidate-reader metrics were corrected in [RESEARCH_LOG.md](RESEARCH_LOG.md).
+
+On Renku, activate `.venv`, use branch `v-2`, and run:
+
+```bash
+python scripts/research_experiment.py \
+  --ids outputs/example_ids_dev_50_seed42.json \
+  --output outputs/my_new_research_run
+```
+
+For the prespecified sequential comparison, `bash scripts/run_research_suite.sh`
+requires the existing frozen50 manifest and the recorded train5 smoke subset.
+It refuses to overwrite research runs. Full prompts and raw generations are
+saved under each run's `traces.jsonl`; compact shareable artifacts are exported
+to `research_results/2026-09-24`. The original50 is exploratory. A separately
+frozen disjoint100 sample is used for confirmation; see the protocol for limits.

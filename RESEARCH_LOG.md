@@ -104,21 +104,49 @@ control is `outputs/dense_fixed50_e9f673f`.
 | Reader | EM | F1 | First-hop supporting-fact recall | Parse-failure rate | Mean latency (s) |
 |---|---:|---:|---:|---:|---:|
 | Legacy control | 0.56 | 0.6622 | 0.82 | 0.00 | 7.4876 |
-| Grounded candidates | 0.56 | 0.6622 | 0.82 | 0.00 | 7.5065 |
+| Grounded candidates | 0.46 | 0.5835 | 0.82 | 0.00 | 7.5065 |
 
 The grounded reader changed 15 of 50 predictions: one exact-match gain and
-one exact-match loss, with the remaining changes still incorrect. It therefore
-did not improve this frozen cohort and adds a small latency cost. The result
+six exact-match losses, with the remaining changes still incorrect. It therefore
+regressed by five correct answers on this frozen cohort. The result
 is evidence against claiming that deterministic post-hoc verification alone
 solves the reader bottleneck; a trained verifier, better answer extraction,
 or a stronger generator is needed before tuning this component further.
 
-The error report `outputs/dense_e9_error_analysis.json` / `.md` found 22
-normal-reader failures: 11 first-hop evidence misses and 11 cases where all
-supporting titles were eventually retrieved but answer composition still
-failed. Among the 17 both-wrong cases, the split was 7 missed-evidence and 10
-incomplete-multi-hop cases. The five retrieval-rescued cases contained four
-missed-evidence cases and one incomplete-multi-hop case. The three
-oracle-regressed cases were answer-selection/generation failures (``Brady
-Seals`` to ``Nick Carter``, ``Greyia`` to ``Calibanus``, and the exact-match
-singular/plural change ``dogs`` to ``dog``), with no parser failure observed.
+### Correction recorded 24 September
+
+The earlier version of this section incorrectly copied the control EM/F1 into
+the candidate-reader row and reported one loss instead of six. Live Renku
+`outputs/dense_reader50_615a16f/metrics.json` was re-read on 24 September:
+EM=0.46, F1=0.5835238095238096, n=50, latency=7.50651058781892 seconds.
+The correction is a reporting fix, not a rerun or a changed scoring rule.
+
+The automated error taxonomy is provisional: first-hop title misses do not
+prove evidence was missing at the final answer, because cumulative title recall
+was 1.0. The script skips normal-correct cases, so it cannot establish the three
+oracle-regression causes. A zero recovered-parse failure rate also does not
+establish valid, complete JSON. Earlier stronger interpretations are withdrawn.
+
+## Literature-driven reader/sufficiency experiment (24 September 2026)
+
+Protocol and source attribution: `docs/RESEARCH_REVIEW_2026-09-24.md`.
+The earlier heuristic reader remains available; new functions explain which old
+behaviors are bypassed and why. Added opt-in Qwen chat templates shared by normal
+and streamed generation, explicit input budget, model-isolated embedding cache,
+raw hop outputs, a short cited-answer reader, and a separate prompted sufficiency
+critic. No model training or learned stopping is claimed.
+
+Train smoke: Renku lacks the train file; the local train download is incomplete.
+Five records were sampled with seed20260924 from its first100 completely parsed
+records, exported as valid JSON, and used only to test execution/schema. The
+initial smoke exposed bracketed citation IDs (`[p6s0]` versus `p6s0`), preventing
+valid critic stops. The parser now normalizes that display syntax; nonexistent
+IDs are still rejected. This correction precedes new dev evaluation. Smoke
+accuracy is not benchmark evidence. No thresholds were fitted on dev.
+
+The current GPU allocation is an H200 NVL MIG 3g.71gb device. Models will run
+sequentially to avoid resource contention. The new harness logs every critic
+call, actual generated tokens, raw prompts and output, strict JSON health,
+model revision, package versions, dataset/manifest hashes, latency, failures and
+sentence/title/citation recall separately. The old50 cohort is exploratory;
+a disjoint100 manifest is reserved for a frozen confirmation comparison.

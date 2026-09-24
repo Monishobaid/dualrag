@@ -90,6 +90,11 @@ class Embedder:
         Returns:
             Query embedding (1, embedding_dim)
         """
+        # BGE's model card recommends this instruction on queries only. Passage
+        # text stays unmodified; MiniLM controls retain their historical inputs.
+        # https://huggingface.co/BAAI/bge-base-en-v1.5
+        if self.model_name.startswith("BAAI/bge-") and self.model_name.endswith("-en-v1.5"):
+            query = "Represent this sentence for searching relevant passages: " + query
         embedding = self.encode([query], normalize=normalize)
         return embedding[0]
     

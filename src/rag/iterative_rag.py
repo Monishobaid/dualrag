@@ -229,6 +229,9 @@ class IterativeRAG:
                 'reasoning_stop_stats': hop_result.get('early_stop_stats', {}),
                 'parse_failed': bool(hop_result.get('parse_failed', False))
             }
+            hop_data['raw_output'] = hop_result.get('raw_output', '')
+            hop_data['supporting_quotes'] = hop_result.get('supporting_quotes', [])
+            hop_data['generation_metadata'] = dict(getattr(self.text_generator.model, 'last_generation', {}))
             hop_data['grounding_score'] = hop_result.get('grounding_score', 0.0)
             hop_data['answer_selection_score'] = hop_result.get('answer_selection_score', 0.0)
             hop_data['current_hypothesis'] = hop_result.get('current_hypothesis', '')

@@ -62,21 +62,11 @@ class TextGenerator:
                 response_format=response_format
             )
         else:
-            # Qwen models receive the system instruction as part of the prompt.
-            # This keeps the JSON-format requirement active in both normal and
-            # streamed generation.
-            qwen_prompt = prompt
-            if system_message:
-                qwen_prompt = f"{system_message}\n\n{prompt}"
             text, num_tokens = self.model.generate_with_token_count(
-                prompt=qwen_prompt,
-                max_new_tokens=max_new_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                stop_strings=stop_strings,
-                response_format=response_format
-            )
-        
+                prompt=prompt, system_message=system_message,
+                max_new_tokens=max_new_tokens, temperature=temperature,
+                top_p=top_p, stop_strings=stop_strings, response_format=response_format)
+
         # Apply stop strings
         if stop_strings:
             for stop_str in stop_strings:
@@ -390,18 +380,8 @@ class ChunkedGenerator:
                 return super().put(value)
 
         model = self.model
-        # Qwen's wrapper accepts a single prompt.  Preserve the system
-        # instruction used by the ordinary path instead of silently dropping
-        # it on the streaming path.
-        if system_message:
-            prompt = f"{system_message}\n\n{prompt}"
-        inputs = model.tokenizer(
-            prompt,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=4096,
-        ).to(model.model.device)
+        # Both paths must format identical messages before we compare stopping.
+        inputs = model.prepare_inputs(prompt, system_message)
         stop_flag = _CallbackStop()
         streamer = _CountingStreamer(
             model.tokenizer,

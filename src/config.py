@@ -20,6 +20,9 @@ class RAGConfig:
     embed_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     device: str = "auto"  # "auto", "cuda", "cpu"
     
+    use_chat_template: bool = False  # Explicit legacy control; corrected runs enable this.
+    max_input_tokens: int = 8192
+
     # Dataset configuration
     dataset_path: str = "data/hotpotqa/hotpot_dev_distractor_v1.json"
     split: str = "dev"
