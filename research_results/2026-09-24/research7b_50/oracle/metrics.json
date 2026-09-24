@@ -1,0 +1,22 @@
+{
+  "num_examples": 50,
+  "num_successful": 50,
+  "em": 0.6,
+  "f1": 0.7586666666666667,
+  "mean_hops": 1.0,
+  "mean_generated_tokens": 72.3,
+  "mean_latency_seconds": 0.9875485096126795,
+  "first_context_supporting_title_recall": 1.0,
+  "supporting_title_recall_at_5": null,
+  "visible_supporting_sentence_recall": 1.0,
+  "citation_supporting_fact_recall": 0.6796666666666666,
+  "parse_failure_rate": 0.0,
+  "non_strict_json_rate": 0.0,
+  "output_budget_hit_rate": 0.0,
+  "num_model_calls": 50,
+  "failed_examples": [],
+  "stop_reasons": {
+    "oracle_evidence": 50
+  },
+  "latency_note": "per-example warm process; excludes model load, includes retrieval and every critic call"
+}

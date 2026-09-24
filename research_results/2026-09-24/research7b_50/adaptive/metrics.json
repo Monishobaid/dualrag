@@ -1,0 +1,23 @@
+{
+  "num_examples": 50,
+  "num_successful": 50,
+  "em": 0.62,
+  "f1": 0.7069379509379509,
+  "mean_hops": 2.3,
+  "mean_generated_tokens": 208.56,
+  "mean_latency_seconds": 2.575411184243858,
+  "first_context_supporting_title_recall": 0.82,
+  "supporting_title_recall_at_5": 0.82,
+  "visible_supporting_sentence_recall": 0.98,
+  "citation_supporting_fact_recall": 0.5429999999999999,
+  "parse_failure_rate": 0.01818181818181818,
+  "non_strict_json_rate": 0.01818181818181818,
+  "output_budget_hit_rate": 0.0,
+  "num_model_calls": 165,
+  "failed_examples": [],
+  "stop_reasons": {
+    "critic_sufficient": 25,
+    "hop_budget": 25
+  },
+  "latency_note": "per-example warm process; excludes model load, includes retrieval and every critic call"
+}

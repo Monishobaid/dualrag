@@ -1,0 +1,91 @@
+{
+  "top5": {
+    "num_examples": 50,
+    "num_successful": 50,
+    "em": 0.46,
+    "f1": 0.5706349206349206,
+    "mean_hops": 1.0,
+    "mean_generated_tokens": 70.36,
+    "mean_latency_seconds": 1.1765173642337323,
+    "first_context_supporting_title_recall": 0.82,
+    "supporting_title_recall_at_5": 0.82,
+    "visible_supporting_sentence_recall": 0.82,
+    "citation_supporting_fact_recall": 0.474,
+    "parse_failure_rate": 0.0,
+    "non_strict_json_rate": 0.0,
+    "output_budget_hit_rate": 0.0,
+    "num_model_calls": 50,
+    "failed_examples": [],
+    "stop_reasons": {
+      "fixed_top5": 50
+    },
+    "latency_note": "per-example warm process; excludes model load, includes retrieval and every critic call"
+  },
+  "all_context": {
+    "num_examples": 50,
+    "num_successful": 50,
+    "em": 0.52,
+    "f1": 0.6486349206349206,
+    "mean_hops": 1.0,
+    "mean_generated_tokens": 74.4,
+    "mean_latency_seconds": 1.412951030470431,
+    "first_context_supporting_title_recall": 1.0,
+    "supporting_title_recall_at_5": null,
+    "visible_supporting_sentence_recall": 1.0,
+    "citation_supporting_fact_recall": 0.44799999999999995,
+    "parse_failure_rate": 0.0,
+    "non_strict_json_rate": 0.0,
+    "output_budget_hit_rate": 0.0,
+    "num_model_calls": 50,
+    "failed_examples": [],
+    "stop_reasons": {
+      "all_context": 50
+    },
+    "latency_note": "per-example warm process; excludes model load, includes retrieval and every critic call"
+  },
+  "oracle": {
+    "num_examples": 50,
+    "num_successful": 50,
+    "em": 0.6,
+    "f1": 0.7586666666666667,
+    "mean_hops": 1.0,
+    "mean_generated_tokens": 72.3,
+    "mean_latency_seconds": 0.9875485096126795,
+    "first_context_supporting_title_recall": 1.0,
+    "supporting_title_recall_at_5": null,
+    "visible_supporting_sentence_recall": 1.0,
+    "citation_supporting_fact_recall": 0.6796666666666666,
+    "parse_failure_rate": 0.0,
+    "non_strict_json_rate": 0.0,
+    "output_budget_hit_rate": 0.0,
+    "num_model_calls": 50,
+    "failed_examples": [],
+    "stop_reasons": {
+      "oracle_evidence": 50
+    },
+    "latency_note": "per-example warm process; excludes model load, includes retrieval and every critic call"
+  },
+  "adaptive": {
+    "num_examples": 50,
+    "num_successful": 50,
+    "em": 0.62,
+    "f1": 0.7069379509379509,
+    "mean_hops": 2.3,
+    "mean_generated_tokens": 208.56,
+    "mean_latency_seconds": 2.575411184243858,
+    "first_context_supporting_title_recall": 0.82,
+    "supporting_title_recall_at_5": 0.82,
+    "visible_supporting_sentence_recall": 0.98,
+    "citation_supporting_fact_recall": 0.5429999999999999,
+    "parse_failure_rate": 0.01818181818181818,
+    "non_strict_json_rate": 0.01818181818181818,
+    "output_budget_hit_rate": 0.0,
+    "num_model_calls": 165,
+    "failed_examples": [],
+    "stop_reasons": {
+      "critic_sufficient": 25,
+      "hop_budget": 25
+    },
+    "latency_note": "per-example warm process; excludes model load, includes retrieval and every critic call"
+  }
+}
