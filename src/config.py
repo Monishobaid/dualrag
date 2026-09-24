@@ -35,6 +35,10 @@ class RAGConfig:
     reranker_model_name: Optional[str] = None
     reranker_candidate_k: int = 20
     max_evidence_paragraphs: Optional[int] = None
+    # Reader ablation. ``legacy`` preserves the original confidence-based
+    # selection; ``grounded_candidates`` verifies candidates collected across
+    # hops before selecting the final answer.
+    reader_mode: str = "legacy"
     
     # Generation configuration
     max_new_tokens: int = 256  # Max tokens per hop generation

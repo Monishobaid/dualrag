@@ -43,6 +43,7 @@ def get_multihop_reasoning_prompt(
     evidence: List[Dict[str, Any]],
     hop: int,
     max_evidence_paragraphs: Optional[int] = None,
+    generate_candidates: bool = False,
 ) -> str:
     """
     Build the reader prompt for one retrieval hop.
@@ -62,6 +63,19 @@ def get_multihop_reasoning_prompt(
     """
     evidence_str = format_paragraphs(evidence, max_paragraphs=max_evidence_paragraphs)
     
+    candidate_field = ''
+    candidate_instruction = ''
+    if generate_candidates:
+        candidate_field = '    "answer_candidates": ["<up to three short answer spans>"],\n'
+        candidate_instruction = (
+            '- "answer_candidates": Give up to three distinct short spans supported by the evidence. '
+            'Use this only for plausible alternatives; do not write sentences.\n'
+        )
+
+    candidate_rules = candidate_instruction
+    candidate_rules += ('- Do not add an answer_candidates field in legacy mode.\n' if not generate_candidates else '')
+    candidate_rules += ('- When present, answer_candidates must contain short entity, attribute, date, or number spans, never explanations.\n' if generate_candidates else '')
+
     prompt = f"""You are answering a multi-hop question that may require information from multiple sources.
 
 Question: {question}
@@ -74,7 +88,7 @@ Format:
 {{
     "current_hypothesis": "<Brief answer based on current knowledge>",
     "answer": "<Insert your final answer here (SHORT SPAN ONLY, NO SENTENCES)>",
-    "has_enough_evidence": <true or false>,
+{candidate_field}    "has_enough_evidence": <true or false>,
     "supporting_quotes": ["<quote 1>", "<quote 2>"],
     "followup_query": "<Insert follow-up question here, or empty string if done>",
     "confidence": <float between 0.0 and 1.0>,
@@ -84,6 +98,7 @@ Format:
 Instructions:
 - "reasoning": Analyze briefly (MAX 20 WORDS). BE CONCISE.
 - "current_hypothesis": Brief answer based on current knowledge.
+{candidate_rules}
 - SHORT ANSWER: Return ONLY the entity, name, date, or number. Do NOT write full sentences like "The answer is...".
 - TYPE CONSISTENCY: Ensure your answer matches the specific type requested.
 - ATTRIBUTE SELECTION: If asked for an attribute of an entity, provide the attribute, not the entity itself.

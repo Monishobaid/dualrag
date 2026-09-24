@@ -90,6 +90,7 @@ def run_single_experiment(args, method, base_run_id):
         reranker_model_name=args.reranker_model_name,
         reranker_candidate_k=args.reranker_candidate_k,
         max_evidence_paragraphs=args.max_evidence_paragraphs,
+        reader_mode=args.reader_mode,
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
@@ -291,6 +292,9 @@ def main():
                         help='First-stage shortlist size passed to the reranker')
     parser.add_argument('--max_evidence_paragraphs', type=int, default=None,
                         help='Explicit evidence cap; omit to preserve all retrieved paragraphs')
+    parser.add_argument('--reader_mode', type=str, default='legacy',
+                        choices=['legacy', 'grounded_candidates'],
+                        help='Answer reader: original selector or evidence/type verified candidates')
     parser.add_argument('--min_hops', type=int, default=2, help='Minimum hops for retrieval stop')
     parser.add_argument('--overlap_threshold', type=float, default=0.7)
     parser.add_argument('--conf_threshold', type=float, default=0.6)
