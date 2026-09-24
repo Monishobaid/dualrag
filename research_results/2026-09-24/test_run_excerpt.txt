@@ -1,0 +1,2 @@
+Source: outputs/research_suite_20260924.log, before GPU suite
+OK
