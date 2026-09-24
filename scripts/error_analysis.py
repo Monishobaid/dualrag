@@ -66,7 +66,8 @@ def analyze(normal_dir: Path, oracle_dir: Path, dataset_path: Path, ids_file=Non
             flags.append("parser_issue")
 
         recall = nt.get("supporting_title_recall")
-        if recall is not None and float(recall) < 1.0:
+        first_hop_recall = nt.get("supporting_fact_recall_at_k")
+        if first_hop_recall is not None and float(first_hop_recall) < 1.0:
             flags.append("missed_evidence")
 
         verification = verifier.verify(
@@ -109,6 +110,7 @@ def analyze(normal_dir: Path, oracle_dir: Path, dataset_path: Path, ids_file=Non
             "flags": flags,
             "primary_category": primary,
             "supporting_title_recall": recall,
+            "supporting_fact_recall_at_k": first_hop_recall,
             "hops": nt.get("hops_taken"),
             "parse_issue": parse_issue,
             "max_hop_grounding_score": max(grounding) if grounding else None,
