@@ -84,3 +84,41 @@ and evidence interpretation also limit the ceiling.
 Per-example normal/oracle report: `outputs/dense_e9_vs_oracle.json` and
 `outputs/dense_e9_vs_oracle.md` on Renku. Categories were 25 both-correct, 17
 both-wrong, 5 retrieval-rescued, and 3 oracle-regressed.
+
+## Reader/error-analysis ablation (24 September 2026)
+
+Revisions: `615a16f` plus `41edcc5` on branch `v-2`. The new
+`grounded_candidates` reader collects Qwen's answer, intermediate hypothesis,
+and up to three alternatives at every hop. A deterministic verifier scores
+exact phrase support in retrieved evidence, coarse question-type compatibility,
+and repetition across hops. The original confidence-first selector remains
+the `legacy` control. `scripts/error_analysis.py` writes a trace-based failure
+taxonomy; its labels are diagnostic heuristics rather than manual gold labels.
+
+Both readers used the same 50-ID manifest, Qwen 7B checkpoint, MiniLM
+embedder, seed 42, greedy decoding, dense retrieval, three hops, five
+paragraphs per hop, 192 new tokens per hop, and a 15-paragraph evidence
+budget. The grounded-reader run is `outputs/dense_reader50_615a16f` and the
+control is `outputs/dense_fixed50_e9f673f`.
+
+| Reader | EM | F1 | First-hop supporting-fact recall | Parse-failure rate | Mean latency (s) |
+|---|---:|---:|---:|---:|---:|
+| Legacy control | 0.56 | 0.6622 | 0.82 | 0.00 | 7.4876 |
+| Grounded candidates | 0.56 | 0.6622 | 0.82 | 0.00 | 7.5065 |
+
+The grounded reader changed 15 of 50 predictions: one exact-match gain and
+one exact-match loss, with the remaining changes still incorrect. It therefore
+did not improve this frozen cohort and adds a small latency cost. The result
+is evidence against claiming that deterministic post-hoc verification alone
+solves the reader bottleneck; a trained verifier, better answer extraction,
+or a stronger generator is needed before tuning this component further.
+
+The error report `outputs/dense_e9_error_analysis.json` / `.md` found 22
+normal-reader failures: 11 first-hop evidence misses and 11 cases where all
+supporting titles were eventually retrieved but answer composition still
+failed. Among the 17 both-wrong cases, the split was 7 missed-evidence and 10
+incomplete-multi-hop cases. The five retrieval-rescued cases contained four
+missed-evidence cases and one incomplete-multi-hop case. The three
+oracle-regressed cases were answer-selection/generation failures (``Brady
+Seals`` to ``Nick Carter``, ``Greyia`` to ``Calibanus``, and the exact-match
+singular/plural change ``dogs`` to ``dog``), with no parser failure observed.

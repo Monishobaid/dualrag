@@ -15,6 +15,7 @@ from src.llm.early_stop import generate_with_reasoning_stop
 from src.retrieval.ranker import ParagraphRanker, RetrievalHistory
 from src.rag.stopping import RetrievalStopper
 from src.rag.evidence_critic import EvidenceSufficiencyCritic
+from src.rag.reader import GroundedCandidateReader
 from src.utils.text import extract_json_from_text, normalize_text
 from src.llm.qwen import QwenModel
 from src.llm.azure_openai import AzureOpenAIModel
@@ -49,6 +50,7 @@ class IterativeRAG:
         self.embedder = embedder
         self.cache = embedding_cache
         self.config = config
+        self.reader = GroundedCandidateReader()
         
         # Initialize components
         self.text_generator = TextGenerator(llm_model)
@@ -111,6 +113,7 @@ class IterativeRAG:
         best_answer = ""
         best_confidence = 0.0
         best_selection_score = -1.0
+        reader_candidates = []
         
         for hop in range(1, max_hops + 1):
             print(f"\n{'='*80}")
@@ -228,8 +231,19 @@ class IterativeRAG:
             }
             hop_data['grounding_score'] = hop_result.get('grounding_score', 0.0)
             hop_data['answer_selection_score'] = hop_result.get('answer_selection_score', 0.0)
+            hop_data['current_hypothesis'] = hop_result.get('current_hypothesis', '')
+            hop_data['answer_candidates'] = hop_result.get('answer_candidates', [])
             if 'evidence_critic' in hop_result:
                 hop_data['evidence_critic'] = hop_result['evidence_critic']
+
+            if getattr(self.config, 'reader_mode', 'legacy') == 'grounded_candidates':
+                reader_candidates.extend(self.reader.candidates_from_hop(
+                    question=question,
+                    hop_result=hop_result,
+                    evidence=cumulative_evidence,
+                    hop=hop,
+                    prior_candidates=[row.get('candidate', '') for row in reader_candidates],
+                ))
 
             hop_history.append(hop_data)
             
@@ -317,7 +331,14 @@ class IterativeRAG:
         # tie-breaker, rather than an unguarded confidence value. This keeps a
         # supported later-hop answer from being discarded by an unsupported
         # overconfident first hop.
-        final_answer = best_answer or (hop_history[-1]['answer'] if hop_history else "")
+        reader_selection = None
+        if getattr(self.config, 'reader_mode', 'legacy') == 'grounded_candidates':
+            reader_selection = self.reader.select(reader_candidates)
+            final_answer = reader_selection.get('answer') or best_answer or (
+                hop_history[-1]['answer'] if hop_history else ""
+            )
+        else:
+            final_answer = best_answer or (hop_history[-1]['answer'] if hop_history else "")
         
         # Fallback to best answer if final is empty/failed but we had a good one earlier
         # Logic: If final answer is empty or very short (<2 chars), AND we have a best answer
@@ -355,6 +376,9 @@ class IterativeRAG:
             'total_tokens': sum(h['tokens_generated'] for h in hop_history),
             'cumulative_evidence_size': len(retrieval_history.get_cumulative_evidence())
         }
+        if reader_selection is not None:
+            trace['reader_mode'] = 'grounded_candidates'
+            trace['reader_selection'] = reader_selection
 
         if self.retrieval_stopper:
             trace['retrieval_stop_stats'] = self.retrieval_stopper.get_stopping_stats(hop_history)
@@ -384,6 +408,7 @@ class IterativeRAG:
             evidence,
             hop,
             max_evidence_paragraphs=getattr(self.config, 'max_evidence_paragraphs', None),
+            generate_candidates=(getattr(self.config, 'reader_mode', 'legacy') == 'grounded_candidates'),
         )
         
         # Generate with or without reasoning stop
@@ -440,6 +465,10 @@ class IterativeRAG:
             parsed = extract_complete_json_from_text(generated_text)
         
         if parsed:
+            current_hypothesis = str(parsed.get('current_hypothesis') or '').strip()
+            answer_candidates = parsed.get('answer_candidates', [])
+            if not isinstance(answer_candidates, list):
+                answer_candidates = []
             answer = str(parsed.get('answer') or '').strip()
             followup_query = str(parsed.get('followup_query') or '').strip()
             try:
@@ -467,6 +496,8 @@ class IterativeRAG:
             followup_query = ""
             supporting_quotes = []
             reasoning = ""
+            current_hypothesis = ""
+            answer_candidates = []
             
         # Semantic Verification removed to reduce noise/hallucination loops
         # Logic simplified to rely on strict JSON output or retrieval loop fallback
@@ -565,6 +596,8 @@ class IterativeRAG:
 
         return {
             'answer': answer,
+            'current_hypothesis': current_hypothesis,
+            'answer_candidates': answer_candidates,
             'followup_query': followup_query,
             'confidence': confidence,
             'has_enough_evidence': has_enough_evidence,

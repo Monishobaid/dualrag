@@ -160,6 +160,38 @@ python scripts/compare_predictions.py \
 See `RESEARCH_LOG.md` for the frozen protocol, baseline table, and dated
 experiment entries.
 
+#### Grounded candidate reader
+
+The default `--reader_mode legacy` keeps the original confidence-first answer
+selection. The optional `grounded_candidates` reader asks Qwen for short
+alternatives at each hop, then scores every candidate for exact evidence
+support, coarse question type, and repetition across hops. It is an ablation,
+not a learned verifier and does not use gold answers:
+
+```bash
+python scripts/run_experiment.py --method fixed_hops \
+  --reader_mode grounded_candidates \
+  --example_ids_file outputs/example_ids_dev_50_seed42.json \
+  --model_name Qwen/Qwen2.5-7B-Instruct --seed 42 --hops 3 \
+  --top_k 5 --max_new_tokens 192 --temperature 0 --top_p 1
+```
+
+The selected candidate and all verification scores are stored in each trace.
+For a matched normal/oracle failure taxonomy, run:
+
+```bash
+python scripts/error_analysis.py \
+  --normal_dir outputs/<normal_run> --oracle_dir outputs/<oracle_run> \
+  --dataset_path data/hotpotqa/hotpot_dev_distractor_v1.json \
+  --ids_file outputs/example_ids_dev_50_seed42.json \
+  --output outputs/error_analysis.json
+```
+
+The categories are trace-based diagnostics: missed first-hop evidence,
+wrong answer type, unsupported answer, parser issue, incomplete multi-hop
+composition, or other generation error. See `RESEARCH_LOG.md` for the latest
+matched reader result.
+
 #### Hybrid retrieval and oracle diagnostic
 
 The ranker supports dense embeddings (`dense`), lexical BM25 (`bm25`), and a
