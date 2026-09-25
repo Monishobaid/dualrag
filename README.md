@@ -19,6 +19,7 @@ These are instruction models, not Qwen3 thinking models. See:
 - [Manual error review](docs/ERROR_REVIEW_2026-09-24.md)
 - [Critic diagnostics](docs/CRITIC_DIAGNOSTICS_2026-09-24.md)
 - [Dataset slices](docs/DATASET_SLICES_2026-09-24.md) and [embedding input audit](docs/EMBEDDING_AUDIT_2026-09-24.md)
+- [Relation-aware answer verification plan](docs/ANSWER_VERIFICATION_PLAN_2026-09-25.md) (implementation pending)
 - [Running research log](RESEARCH_LOG.md)
 
 The historical pipeline below remains runnable for comparison. The newer

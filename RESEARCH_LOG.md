@@ -4,6 +4,63 @@ This is the running record for experiments that may be used in the paper. Each
 entry should name the code revision, frozen example manifest, model settings,
 and output directory before making a performance claim.
 
+## 2026-09-25 — plan for relation-aware answer verification
+
+**Status: plan documented; implementation and new evaluation have not started.**
+
+The current evidence does not justify abandoning retrieval. It does justify
+pausing the prompted adaptive critic, reasoning-token stopping, and dual
+stopping as the main idea. On confirmation100, the strongest observed static
+reader (Qwen2.5-14B, ranked all ten paragraphs, one call) scored 60% EM /
+71.51% F1 with 66.7 output tokens and 1.74 seconds per example. The adaptive
+critic scored 59% / 69.95% with 149.8 output tokens and 3.51 seconds. The
+adaptive result is retained as a fair historical comparison; it is not being
+silently removed.
+
+The next experiment is specified in
+[`docs/ANSWER_VERIFICATION_PLAN_2026-09-25.md`](docs/ANSWER_VERIFICATION_PLAN_2026-09-25.md).
+It tests a structured answer, deterministic relation/operation checks, an
+independent entailment-style verifier, and one bounded evidence-only revision
+call. The aim is to address observed comparison-direction, answer-type,
+intersection, and answer/explanation contradiction errors. It deliberately
+avoids another open-ended stopping loop.
+
+The plan adapts ideas from RARR, FActScore, Re-Ex, RAC, Provenance, Generate
+but Verify, grounded claim checking, and FRAMES. The plan links each paper and
+states where our bounded HotpotQA implementation differs; their reported
+numbers are not imported as expected results. Google sufficient-context,
+Anthropic Contextual Retrieval, IRCoT, Self-RAG, CRAG, and Lost in the Middle
+remain background evidence for context and retrieval controls in the earlier
+research review.
+
+Before code changes, the new test manifest must be frozen disjoint from both
+the exploratory50 and confirmation100 cohorts. All arms will share IDs,
+dataset hash, seed, model, embedder, evidence order, and generation budgets.
+The oracle arm remains an evaluation-only generation diagnostic. No gold answer,
+gold title, or dev-derived threshold may enter a deployable prompt or routing
+rule.
+
+The new logs will preserve raw outputs, evidence IDs and sentences, structured
+claims, operation/type checks, verifier labels/confidences, revision decisions,
+per-example EM/F1, support precision/recall, contradiction and unsupported
+rates, calls, tokens, latency, parse/schema failures, and failed IDs. Reports
+will show paired gains, regressions, unchanged cases, bootstrap intervals, and
+the most informative failures. Private chain-of-thought is neither requested
+nor stored.
+
+The predefined gate is at least +3 EM points over the static 14B reference on
+the untouched cohort, no increase in unsupported or contradictory answers, and
+an acceptable measured cost. If this gate is not met, the static reader remains
+the reference and the current critic/stopping idea is reported as a negative
+result rather than tuned indefinitely. A verifier that improves accuracy but
+costs more may remain an optional high-accuracy mode.
+
+Expected additions are isolated structured-answer, relation-check, verifier,
+revision, experiment-runner, and analysis modules. The legacy stopping runner
+will remain intact for reproducibility. No implementation or GPU result is
+claimed in this entry; the next log entry must name the implementation commit,
+manifest, and output directories before reporting measurements.
+
 ## Evaluation protocol
 
 - Dataset: HotpotQA distractor development set.
