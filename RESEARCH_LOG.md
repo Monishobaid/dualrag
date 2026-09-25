@@ -57,9 +57,10 @@ costs more may remain an optional high-accuracy mode.
 
 Expected additions are isolated structured-answer, relation-check, verifier,
 revision, experiment-runner, and analysis modules. The legacy stopping runner
-will remain intact for reproducibility. No implementation or GPU result is
-claimed in this entry; the next log entry must name the implementation commit,
-manifest, and output directories before reporting measurements.
+will remain intact for reproducibility. At this point this is a documented
+plan; no GPU result is claimed in this entry. The implementation is recorded
+below at commit `c67f7ce`, and the frozen cohort at commit `8af743e`; an output
+directory and Renku revision are still required before reporting measurements.
 
 ### Phase-1 implementation (same date, no benchmark yet)
 
