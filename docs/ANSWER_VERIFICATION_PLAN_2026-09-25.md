@@ -1,7 +1,7 @@
 # Relation-aware answer verification: implementation plan
 
-**Status:** plan only. No production code or evaluation result is changed by
-this document.
+**Status:** plan approved for implementation; phase-1 isolated scaffolding is
+now present, but no GPU benchmark result is claimed yet.
 
 **Decision that motivates the plan:** the current strong reference is a static
 one-call reader with Qwen2.5-14B and ranked all-context evidence. On the frozen
@@ -252,3 +252,12 @@ runner:
 The legacy stopping code remains available for reproducibility and is not
 silently deleted. Each new module will include a short module-level comment
 that names the relevant paper and states exactly which idea is adapted.
+
+The phase-1 files now present are `structured_answer.py`,
+`relation_checks.py`, `claim_verifier.py`, `revision.py`,
+`run_verification_experiment.py`, and `analyze_verification.py`. Phase 1
+implements the structured reader, deterministic checks, prompted verifier,
+one bounded revision, and raw per-example logging. The prompted verifier is
+explicitly a comparison arm: it is not yet an independent or train-calibrated
+verifier. NLI integration, train-only calibration, and a new frozen cohort are
+required before any accuracy claim.

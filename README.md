@@ -19,7 +19,7 @@ These are instruction models, not Qwen3 thinking models. See:
 - [Manual error review](docs/ERROR_REVIEW_2026-09-24.md)
 - [Critic diagnostics](docs/CRITIC_DIAGNOSTICS_2026-09-24.md)
 - [Dataset slices](docs/DATASET_SLICES_2026-09-24.md) and [embedding input audit](docs/EMBEDDING_AUDIT_2026-09-24.md)
-- [Relation-aware answer verification plan](docs/ANSWER_VERIFICATION_PLAN_2026-09-25.md) (implementation pending)
+- [Relation-aware answer verification plan](docs/ANSWER_VERIFICATION_PLAN_2026-09-25.md) and isolated runner
 - [Running research log](RESEARCH_LOG.md)
 
 The historical pipeline below remains runnable for comparison. The newer
@@ -245,6 +245,36 @@ criterion so callbacks can interrupt decoding. Token counts are measured from
 the streamed prefix. Azure runs remain API-driven and cannot interrupt a
 provider-side completion. The four stopping modes are experimental ablations;
 retrieval-only stopping is currently the simplest production-style baseline.
+
+### Relation-aware verification experiment (new, isolated)
+
+The next experiment is implemented in `scripts/run_verification_experiment.py`.
+It keeps the legacy runner unchanged and compares a ranked all-context reader,
+structured claims, deterministic relation checks, a prompted claim verifier,
+one bounded evidence-only revision, and an oracle diagnostic on the same frozen
+IDs. The structured schema and checks adapt the atomic-claim and grounded
+revision ideas from FActScore, RARR, Re-Ex, RAC, and Provenance; the exact
+boundaries are recorded in the [implementation plan](docs/ANSWER_VERIFICATION_PLAN_2026-09-25.md).
+
+```bash
+python scripts/run_verification_experiment.py \
+  --ids outputs/example_ids_new_frozen.json \
+  --output outputs/verification_2026-09-25 \
+  --model Qwen/Qwen2.5-14B-Instruct \
+  --arms static structured checked verified revised oracle \
+  --seed 42 --max-new-tokens 192
+
+python scripts/analyze_verification.py \
+  --experiment outputs/verification_2026-09-25 \
+  --base static --candidate revised \
+  --output outputs/verification_2026-09-25/normal_vs_revised.json
+```
+
+This first implementation uses the prompted verifier as a comparison arm; it
+does not claim that verifier is independent or calibrated. The independent NLI
+adapter and train-only calibration are later phases in the plan. Every arm
+writes raw calls, structured fields, evidence IDs, checks, revision decisions,
+costs, and failed IDs to its trace and metrics files.
 
 ### 4. Evaluate Results
 

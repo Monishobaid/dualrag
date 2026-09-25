@@ -61,6 +61,32 @@ will remain intact for reproducibility. No implementation or GPU result is
 claimed in this entry; the next log entry must name the implementation commit,
 manifest, and output directories before reporting measurements.
 
+### Phase-1 implementation (same date, no benchmark yet)
+
+The plan was written and committed before the implementation. The isolated
+phase-1 modules are now in the source tree:
+
+* `src/rag/structured_answer.py` parses the concise answer/type/operation/
+  claim schema and records structural failures.
+* `src/rag/relation_checks.py` performs explainable type, operation, citation,
+  lexical claim-support, numeric consistency, comparison, and intersection
+  checks without gold answers.
+* `src/rag/claim_verifier.py` parses the prompted verifier contract. This is a
+  comparison arm only; it is not being described as independent or calibrated.
+* `src/rag/revision.py` builds one evidence-only correction prompt.
+* `scripts/run_verification_experiment.py` runs matched `static`, `structured`,
+  `checked`, `verified`, `revised`, and `oracle` arms and refuses to overwrite
+  output directories.
+* `scripts/analyze_verification.py` reports per-example gains, regressions,
+  unchanged cases, revision decisions, and failure reasons.
+
+All new files contain module-level paper attribution. The runner passed Python
+compile, synthetic parser/checker smoke tests, and the existing focused suite
+(`PYTHONPATH=. pytest ...`): 18 tests passed. No new cohort has
+been opened, no threshold has been tuned, and no GPU accuracy result exists
+yet. The next entry must record a newly frozen disjoint manifest and the exact
+Renku output directories before reporting EM/F1.
+
 ## Evaluation protocol
 
 - Dataset: HotpotQA distractor development set.
