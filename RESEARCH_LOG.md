@@ -84,8 +84,13 @@ All new files contain module-level paper attribution. The runner passed Python
 compile, synthetic parser/checker smoke tests, and the existing focused suite
 (`PYTHONPATH=. pytest ...`): 18 tests passed. No new cohort has
 been opened, no threshold has been tuned, and no GPU accuracy result exists
-yet. The next entry must record a newly frozen disjoint manifest and the exact
-Renku output directories before reporting EM/F1.
+yet. A new disjoint 100-example manifest is now frozen at
+`research_results/2026-09-25/verification_ids_100_seed20260925.json`; it
+excludes the earlier 50-example, confirmation100, and train smoke manifests.
+Its ordered ID SHA256 is
+`c52904c8119e3b79abd83c9ed6cbf27e2a9569ee24a5de71339eef0d955dc633`. The next
+entry must name the implementation revision and exact Renku output directories
+before reporting EM/F1.
 
 ## Evaluation protocol
 

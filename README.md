@@ -258,7 +258,7 @@ boundaries are recorded in the [implementation plan](docs/ANSWER_VERIFICATION_PL
 
 ```bash
 python scripts/run_verification_experiment.py \
-  --ids outputs/example_ids_new_frozen.json \
+  --ids research_results/2026-09-25/verification_ids_100_seed20260925.json \
   --output outputs/verification_2026-09-25 \
   --model Qwen/Qwen2.5-14B-Instruct \
   --arms static structured checked verified revised oracle \
