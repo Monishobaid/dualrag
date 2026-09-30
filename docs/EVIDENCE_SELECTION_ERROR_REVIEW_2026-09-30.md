@@ -33,3 +33,28 @@ The comparison has eight complete-support gains and one regression at k=5.
 Every case, including unchanged failures, is retained in
 `research_results/2026-09-30/pooled_bm25/per_example.json`. Parameters stay frozen;
 these dev cases are not used to tune term weights or stopping thresholds.
+# Cross-encoder regressions on the completed Renku run
+
+All five questions that lost complete annotated support at k=5 relative to BM25
+are retained below. This examines retrieval output only; loss of an annotation
+does not establish that Qwen's answer is wrong or that the context is insufficient.
+
+| Example ID | Question topic | What disappeared from top5 | Observed ranking pattern |
+|---|---|---|---|
+| `5a77a44d5542997042120aba` | Brian Curran's district and a Nassau County CDP | Baldwin's location/type paragraph | Curran remains, but other Nassau County places displace Baldwin. |
+| `5abc87a8554299114383a13e` | Singer linking Baabul and Collaborations 3 | The album and its contributor list | Richa Sharma remains; other singers displace the album evidence. |
+| `5ae1568a55429901ffe4ae6b` | Route 102 terminus and an island nickname | Tremont, Maine and "the backside" | Road pages dominate; Southern State Parkway appears twice as different chunks/versions. |
+| `5ae3de615542992f92d823a5` | The Human Condition and its political system | Definition of Totalitarianism | Film/novel/author pages displace the concept needed for the second relation. |
+| `5a8b452655429971feec468e` | Timberwolves signing and a former player's friend | Kevin Garnett's biographical support | Season/player relevance remains, but the annotated linking person's paragraph falls out. |
+
+Interpretation from these logs: a query-passage relevance model can overfill a
+small evidence budget with similar passages about one part of a question. It has
+no explicit objective rewarding a set of passages that jointly covers both
+relations. This is an analysis-derived hypothesis, not a demonstrated new method.
+The future experiment would compare relevance-only ranking against controlled
+evidence diversity/relation coverage, on a new frozen cohort. We did not modify
+ranking, k, fusion weights or prompts in response to these five dev cases.
+
+Source: `research_results/2026-09-30/evidence_20260930_renku_retrieval/per_example.json`
+and paired complete-support deltas. Reader predictions must be joined before
+calling any of these cases an answer regression.

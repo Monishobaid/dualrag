@@ -509,3 +509,19 @@ Status: `outputs/evidence_completion_status.txt`; logs:
 continuation and records failure. These process handles are launch receipts,
 not completed-result evidence. The official index was still building at this
 checkpoint. Optional 2Wiki replication has not run.
+
+### Backup and regression audit (23:21 UTC)
+
+The completed retrieval artifact files were downloaded from authenticated GitLab
+and their Git tree checked against the original result commit. Local and GitHub
+were then fast-forwarded to the exact DCU merge commit `9d5e9db`; the prior
+checkpoint's GitHub result-backup gap is resolved. No credentials were copied
+between machines and no commit contents were altered during mirroring.
+
+Reviewed all five complete-support regressions from plain reranking. The observed
+pattern is loss of a complementary page: Baldwin, Collaborations 3, Tremont,
+Totalitarianism, or Kevin Garnett, while closely related pages about the main
+entity remain. The detailed case table is in
+`docs/EVIDENCE_SELECTION_ERROR_REVIEW_2026-09-30.md`. This motivates a future
+joint-evidence selection hypothesis, but does not justify tuning on these IDs
+or claiming five answer failures before joining reader predictions.
