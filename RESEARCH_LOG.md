@@ -484,3 +484,28 @@ The reader analyzer preserves compressed raw calls and separates critic cost
 from reader cost, paired answer gains/regressions, parser failures, and coverage
 strata. Critic agreement with gold-support coverage is not human sufficiency
 accuracy. Full local suite after the analyzer and verifier regressions: 31 passed.
+
+### Execution checkpoint (30 September 2026, 23:17 UTC)
+
+The same 31 tests passed on Renku (4.73 seconds). DCU GitLab `v-2` contains the
+implementation, completed retrieval artifacts, and analysis scripts; remote merge
+commit `13820b3` preserves both the result commit and local source commits. GitHub
+contains source commit `05da077`; remote result commits are not yet mirrored there.
+No force-push or history replacement was used.
+
+The pooled Qwen reader uses resolved checkpoint
+`cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8`, one reader call and one diagnostic
+critic call per question/arm, k=5, temperature=0, seed=42, output budget=192.
+The fullwiki continuation checks this same reader revision and pins both
+retrieval snapshots. No thresholds or prompts were tuned on the reported IDs.
+
+Renku process 929 runs the pooled suite; 1468 builds/evaluates official fullwiki
+lexical retrieval; 2735 waits for those jobs, checks completed protocols, archives
+raw traces, updates this log with generated reports, pushes result commits to
+GitLab, then executes the fullwiki dense/hybrid/reranker and reader comparisons.
+Status: `outputs/evidence_completion_status.txt`; logs:
+`outputs/evidence_suite_console.log`, `outputs/fullwiki_suite_console.log`, and
+`outputs/evidence_completion_console.log`. A failed prerequisite stops the
+continuation and records failure. These process handles are launch receipts,
+not completed-result evidence. The official index was still building at this
+checkpoint. Optional 2Wiki replication has not run.
