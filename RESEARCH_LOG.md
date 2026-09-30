@@ -362,3 +362,71 @@ claim that the current critic, dual stopping, or a vector database beats market
 RAG systems. The next research hypothesis is grounded relation/operation checking
 and calibrated train-only control, with strong static baselines and full-corpus
 retrieval. See `docs/RESEARCH_CONCLUSIONS_2026-09-24.md` for the detailed plan.
+
+## 2026-09-30 / 2026-10-01 — evidence-selection implementation and first results
+
+Plan: `docs/EVIDENCE_SELECTION_PLAN_2026-09-30.md`, recorded before measurement.
+Implementation commit: `d47e34c`. Source pushed to GitHub; Git commits transferred
+as a Git bundle (not an archive deployment) to the freshly started Renku checkout
+and pushed there through its existing GitLab authentication to `v-2`.
+
+Renku's launch UI stayed at "Requesting session resources" while its ttyd endpoint
+was already reachable. Direct navigation to the terminal endpoint printed in the
+service logs worked. This is a UI/session readiness mismatch, not a claim that
+Renku networking was down. Fresh checkout path is
+`/home/renku/work/dual-stoppingrag-code`; earlier checkout and installed ML packages
+were absent. Dependencies are being restored. Historical compact artifacts remain
+in the backed-up repository.
+
+### Corpus integrity
+
+Local `hotpot_train_v1.1.json` is truncated at character 103423974 (JSON decode
+failure), so it was excluded rather than partially ingested. The first valid
+index pools all 7,405 dev records' context paragraphs: 66,635 distinct exact
+(title, sentence-list) documents, 81,276 chunks, sentence-boundary budget 120 words.
+Same-title differing versions remain separate. This is a **pooled-dev diagnostic**,
+not official fullwiki and not a train-derived corpus. Corpus building ignores
+questions, answers and support annotations; it includes every available context,
+not just selected examples or gold paragraphs. Every frozen example has all gold
+support available in this corpus.
+
+The official 1,553,565,403-byte fullwiki introductory archive was downloaded
+locally and verified against the published MD5 `01edf64cd120ecc03a2745352779514c`.
+Importer reads archive members without extracting paths and preserves sentence
+addresses. Fullwiki model runs are pending, not implied by the download.
+
+### Completed local BM25 comparison (100 frozen IDs)
+
+Run: `outputs/evidence_20260930_bm25`; compact source artifacts and paired analysis:
+`research_results/2026-09-30/pooled_bm25/`. No query/threshold tuning on this cohort.
+
+| Index text | Sentence recall@5 | Complete gold support@5 | Sentence recall@10 | Complete gold support@10 |
+|---|---:|---:|---:|---:|
+| Raw chunk | 0.7110 | 0.45 | 0.8100 | 0.64 |
+| Title + document lead + chunk | 0.7535 | 0.52 | 0.8508 | 0.70 |
+
+Contextual minus raw sentence R@5: +0.0425, paired bootstrap 95% interval
+[+0.0083, +0.0792]. Complete-support@5 improves on eight questions and regresses
+on one; net +7 points, interval [+2,+13]. These are exploratory retrieval results,
+not EM/F1 improvement or human sufficiency judgments. Context is deterministic
+metadata/lead enrichment inspired by Anthropic; it is not their LLM-generated
+full-document method. Reader evidence remains original sentences only.
+
+### Implementation and validation
+
+New modules use persistent SQLite FTS5 corpus-wide BM25, batched normalized dense
+embeddings with corpus/model/variant-keyed disk caches, reciprocal rank fusion
+(k=60), and a top100 cross-encoder reranker. Logs retain every rank, score, original
+sentence, missing support, query latency, tokenizer overflow and per-example
+coverage at k=5/10/20. Analysis includes paired bootstrap deltas and regressions.
+Separate `read_corpus_evidence.py` fixes Qwen's reader prompt and logs EM/F1 and
+optional sufficiency decisions without allowing gold labels into model calls.
+Semantic sufficiency precision/recall requires independent labels; complete
+annotated support is deliberately reported under its own name.
+
+24 targeted tests passed after fixing a Python 3.9 streaming tar/bz2 compatibility
+issue. Two dense attempts failed before inference because sentence-transformers
+2.3 expected an empty stateless Normalize directory absent from the hub snapshot;
+that loader compatibility issue was fixed without changing model weights. Their
+protocols are marked failed, not silently removed. Dense/hybrid/reranker and reader
+runs remain pending until complete artifacts exist.

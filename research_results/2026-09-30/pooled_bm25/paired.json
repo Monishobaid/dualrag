@@ -1,0 +1,188 @@
+{
+  "plain_bm25": {
+    "5": {
+      "sentence_recall": {
+        "mean_delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "improved_ids": [],
+        "regressed_ids": []
+      },
+      "complete_support": {
+        "mean_delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "improved_ids": [],
+        "regressed_ids": []
+      }
+    },
+    "10": {
+      "sentence_recall": {
+        "mean_delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "improved_ids": [],
+        "regressed_ids": []
+      },
+      "complete_support": {
+        "mean_delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "improved_ids": [],
+        "regressed_ids": []
+      }
+    },
+    "20": {
+      "sentence_recall": {
+        "mean_delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "improved_ids": [],
+        "regressed_ids": []
+      },
+      "complete_support": {
+        "mean_delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "improved_ids": [],
+        "regressed_ids": []
+      }
+    }
+  },
+  "contextual_bm25": {
+    "5": {
+      "sentence_recall": {
+        "mean_delta": 0.0425,
+        "ci95": [
+          0.008333333333333333,
+          0.07916666666666666
+        ],
+        "improved_ids": [
+          "5ab6be2f55429954757d335c",
+          "5add21555542992ae4cec496",
+          "5abbe188554299642a094ba0",
+          "5ab6faec5542991d32223708",
+          "5adde17f5542992200553b87",
+          "5a82a1ae55429954d2e2eb89",
+          "5a8393665542990548d0b1ea",
+          "5a89e20a5542992e4fca8438",
+          "5a8aee2c55429970aeb70338",
+          "5a8a06455542992e4fca84db",
+          "5a80752b5542992bc0c4a720"
+        ],
+        "regressed_ids": [
+          "5a8b7d7d5542997f31a41d4b",
+          "5a7730015542994aec3b7210"
+        ]
+      },
+      "complete_support": {
+        "mean_delta": 0.07,
+        "ci95": [
+          0.02,
+          0.13
+        ],
+        "improved_ids": [
+          "5ab6be2f55429954757d335c",
+          "5abbe188554299642a094ba0",
+          "5ab6faec5542991d32223708",
+          "5a82a1ae55429954d2e2eb89",
+          "5a89e20a5542992e4fca8438",
+          "5a8aee2c55429970aeb70338",
+          "5a8a06455542992e4fca84db",
+          "5a80752b5542992bc0c4a720"
+        ],
+        "regressed_ids": [
+          "5a8b7d7d5542997f31a41d4b"
+        ]
+      }
+    },
+    "10": {
+      "sentence_recall": {
+        "mean_delta": 0.04083333333333334,
+        "ci95": [
+          0.015,
+          0.07083333333333335
+        ],
+        "improved_ids": [
+          "5ab6be2f55429954757d335c",
+          "5add21555542992ae4cec496",
+          "5abbe188554299642a094ba0",
+          "5ab6faec5542991d32223708",
+          "5adde17f5542992200553b87",
+          "5a7730015542994aec3b7210",
+          "5ac047a3554299294b218f70",
+          "5a80752b5542992bc0c4a720"
+        ],
+        "regressed_ids": []
+      },
+      "complete_support": {
+        "mean_delta": 0.06,
+        "ci95": [
+          0.02,
+          0.11
+        ],
+        "improved_ids": [
+          "5ab6be2f55429954757d335c",
+          "5abbe188554299642a094ba0",
+          "5ab6faec5542991d32223708",
+          "5a7730015542994aec3b7210",
+          "5ac047a3554299294b218f70",
+          "5a80752b5542992bc0c4a720"
+        ],
+        "regressed_ids": []
+      }
+    },
+    "20": {
+      "sentence_recall": {
+        "mean_delta": 0.0225,
+        "ci95": [
+          -0.005,
+          0.0525
+        ],
+        "improved_ids": [
+          "5add21555542992ae4cec496",
+          "5a808b57554299485f598651",
+          "5adde17f5542992200553b87",
+          "5ab250b9554299722f9b4cd9",
+          "5a7730015542994aec3b7210",
+          "5add3b035542997545bbbcce",
+          "5a80752b5542992bc0c4a720"
+        ],
+        "regressed_ids": [
+          "5abd04bd5542992ac4f381a9",
+          "5ab8e70b5542991b5579f031"
+        ]
+      },
+      "complete_support": {
+        "mean_delta": 0.03,
+        "ci95": [
+          -0.02,
+          0.08
+        ],
+        "improved_ids": [
+          "5a808b57554299485f598651",
+          "5ab250b9554299722f9b4cd9",
+          "5a7730015542994aec3b7210",
+          "5add3b035542997545bbbcce",
+          "5a80752b5542992bc0c4a720"
+        ],
+        "regressed_ids": [
+          "5abd04bd5542992ac4f381a9",
+          "5ab8e70b5542991b5579f031"
+        ]
+      }
+    }
+  }
+}

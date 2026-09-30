@@ -565,3 +565,39 @@ After exporting completed runs, regenerate the analysis with
 dev dataset. `scripts/plot_research_results.py` optionally requires Matplotlib
 and produces PNG/PDF figures only when all ten comparison arms are present.
 The 14B top9/ranked-all arms are explicitly marked as post-hoc controls.
+
+## Corpus-wide evidence selection (September 30)
+
+[Protocol and attribution](docs/EVIDENCE_SELECTION_PLAN_2026-09-30.md).
+This adds persistent corpus-wide BM25, dense search, RRF hybrid fusion and a
+cross-encoder reranker. Raw chunks and title+document-lead contextual chunks
+are matched on the same frozen 100 IDs. This contextual prefix is a deterministic
+baseline inspired by Anthropic, not a reproduction of generated contextualization.
+The reader receives only the original sentence evidence.
+
+```bash
+# First reproduce the shared-corpus diagnostic on Renku with CUDA.
+# pyarrow is needed only for the verified fallback dataset downloader.
+python -m pip install -r requirements.txt pytest pyarrow
+bash scripts/run_evidence_selection_renku.sh evidence_20260930_renku
+
+# Separately index the official 1.55-GB HotpotQA intro archive and run BM25.
+# Requires substantial free disk and time: this searches all indexed Wikipedia.
+bash scripts/run_fullwiki_retrieval.sh
+
+# Once the fullwiki lexical diagnostic is complete, compare all retrievers.
+python scripts/run_corpus_retrieval.py --corpus data/corpus/fullwiki.sqlite \
+  --output outputs/fullwiki_all_retrievers --device cuda --batch-size 128
+```
+
+The pooled diagnostic searches all 66,635 unique dev-context paragraphs, not
+only the question's ten candidates; it is **not official fullwiki**. The original
+local train file was incomplete and excluded. The importer also accepts the
+Hotpot-format contexts of 2WikiMultihopQA, but no second-dataset accuracy is claimed.
+
+Artifacts include corpus/model hashes, full rankings, original sentence addresses,
+missing evidence, title/sentence recall@5/10/20, complete annotated support, corpus
+availability, tokenizer overflow, per-stage costs and paired bootstrap intervals.
+Coverage is not semantic sufficiency. The separate frozen Qwen reader writes
+EM/F1, raw outputs, failed examples, token counts and optional critic decisions.
+No retrieval result alone proves an answer-accuracy improvement.
