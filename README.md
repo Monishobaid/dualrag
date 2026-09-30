@@ -1,12 +1,31 @@
-# Dual Stopping Iterative RAG on HotpotQA
+# DualRAG: evidence selection, answer verification and stopping baselines
 
-A research implementation of iterative retrieval-augmented generation on the
-HotpotQA distractor dataset. The September 24 study uses
+A research implementation of retrieval-augmented generation on HotpotQA,
+extending the original distractor setup to pooled and full-Wikipedia retrieval. The September 24 study uses
 `Qwen/Qwen2.5-7B-Instruct` and `Qwen/Qwen2.5-14B-Instruct`. The historical
 `run_experiment.py` runner still defaults to 3B unless a model is supplied;
 the new `research_experiment.py` runner defaults to 7B.
 
-## Current research results
+## Evidence-selection expansion (30 September 2026)
+
+The current experiment searches a shared corpus, compares BM25, MiniLM dense,
+RRF hybrid, and hybrid plus a cross encoder, with plain/contextual chunk variants.
+The completed 100-question **pooled dev-context** retrieval run improved sentence
+recall@5 from .711 (BM25) to .816 (reranked hybrid), and complete annotated support
+from .45 to .63. These are retrieval metrics, not answer EM/F1 or fullwiki results.
+See `docs/EVIDENCE_SELECTION_PLAN_2026-09-30.md` and `RESEARCH_LOG.md` for scope,
+paper attribution, regressions, model revisions and ongoing runs.
+
+`scripts/run_evidence_selection_renku.sh` runs the pooled comparison and fixed
+Qwen2.5-14B reader. `scripts/analyze_corpus_reader.py` exports paired answer
+comparisons, costs separated by reader/critic, parser failures, and compressed
+raw traces. `scripts/run_fullwiki_retrieval.sh` builds the official Wikipedia
+intro corpus and evaluates lexical retrieval; `scripts/run_fullwiki_dense.sh`
+continues with all eight arms and the same checkpoint reader. Fullwiki indexing
+is substantially larger; completed artifacts, rather than launched jobs, determine
+whether a result can be reported. The optional second dataset remains future work.
+
+## Earlier reader results (24 September 2026)
 
 The September 24 experiments evaluate Qwen2.5 **7B and 14B Instruct**, a short
 cited-answer reader, stronger embeddings, and a separate prompted sufficiency
@@ -601,21 +620,3 @@ availability, tokenizer overflow, per-stage costs and paired bootstrap intervals
 Coverage is not semantic sufficiency. The separate frozen Qwen reader writes
 EM/F1, raw outputs, failed examples, token counts and optional critic decisions.
 No retrieval result alone proves an answer-accuracy improvement.
-# Evidence-selection expansion (30 September 2026)
-
-The current experiment searches a shared corpus, compares BM25, MiniLM dense,
-RRF hybrid, and hybrid plus a cross encoder, with plain/contextual chunk variants.
-The completed 100-question **pooled dev-context** retrieval run improved sentence
-recall@5 from .711 (BM25) to .816 (reranked hybrid), and complete annotated support
-from .45 to .63. These are retrieval metrics, not answer EM/F1 or fullwiki results.
-See `docs/EVIDENCE_SELECTION_PLAN_2026-09-30.md` and `RESEARCH_LOG.md` for scope,
-paper attribution, regressions, model revisions and ongoing runs.
-
-`scripts/run_evidence_selection_renku.sh` runs the pooled comparison and fixed
-Qwen2.5-14B reader. `scripts/analyze_corpus_reader.py` exports paired answer
-comparisons, costs separated by reader/critic, parser failures, and compressed
-raw traces. `scripts/run_fullwiki_retrieval.sh` builds the official Wikipedia
-intro corpus and evaluates lexical retrieval; `scripts/run_fullwiki_dense.sh`
-continues with all eight arms and the same checkpoint reader. Fullwiki indexing
-is substantially larger; completed artifacts, rather than launched jobs, determine
-whether a result can be reported. The optional second dataset remains future work.
