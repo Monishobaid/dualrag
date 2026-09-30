@@ -22,7 +22,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.data.hotpot_loader import HotpotQALoader
-from src.rag.claim_verifier import VERIFIER_SYSTEM, parse_verification
+from src.rag.claim_verifier import VERIFIER_SYSTEM, parse_verification, verification_prompt
 from src.rag.relation_checks import run_relation_checks
 from src.rag.revision import REVISION_SYSTEM, revision_prompt
 from src.rag.structured_answer import STRUCTURED_READER_SYSTEM, parse_structured, validate_structured
@@ -47,9 +47,9 @@ def load_ids(path: str) -> list[str]:
 
 
 def call_json(llm, question: str, paragraphs: list[dict], system: str,
-              role: str, budget: int, parser):
+              role: str, budget: int, parser, prompt_override=None):
     context, sources = evidence_view(paragraphs)
-    prompt = f"EVIDENCE:\n{context}\n\nQUESTION: {question}"
+    prompt = prompt_override if prompt_override is not None else f"EVIDENCE:\n{context}\n\nQUESTION: {question}"
     started = time.perf_counter()
     raw, tokens = llm.generate_with_token_count(
         prompt, system_message=system, max_new_tokens=budget, temperature=0, top_p=1
@@ -121,10 +121,11 @@ def run_one(ex, arm: str, ranker, llm, max_new_tokens: int) -> dict:
                 VERIFIER_SYSTEM,
                 "verifier",
                 max_new_tokens,
-                lambda raw: (parse_verification(raw, len(claims), sources), True),
+                parse_object,
+                prompt_override=verification_prompt(ex.question, structured, context),
             )
             calls.append(vcall)
-            verification = verifier_obj or verification
+            verification = parse_verification(vcall["raw_output"], len(claims), sources)
             verification["mode"] = "prompted"
 
         if arm == "revised":
