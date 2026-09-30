@@ -49,6 +49,7 @@ def main():
     p.add_argument('--arms',nargs='+',required=True)
     p.add_argument('--k',type=int,default=5)
     p.add_argument('--model',default='Qwen/Qwen2.5-14B-Instruct')
+    p.add_argument('--expected-model-revision',default=None)
     p.add_argument('--critic',action='store_true')
     p.add_argument('--max-new-tokens',type=int,default=192)
     p.add_argument('--seed',type=int,default=42)
@@ -69,6 +70,9 @@ def main():
         if torch.cuda.is_available():torch.cuda.manual_seed_all(a.seed)
     seed()
     llm=QwenModel(a.model,use_chat_template=True,max_input_tokens=8192)
+    actual_revision = getattr(llm.model.config, '_commit_hash', None)
+    if a.expected_model_revision and actual_revision != a.expected_model_revision:
+        raise ValueError('Reader checkpoint changed: ' + str(actual_revision))
     protocol={**vars(a),'retrieval_protocol_sha256':file_hash(root/'protocol.json'),'ids':prior['ids'],
         'code_revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
         'model_revision':getattr(llm.model.config,'_commit_hash',None),'reader_system':READER_SYSTEM,

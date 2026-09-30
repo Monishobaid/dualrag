@@ -430,3 +430,57 @@ issue. Two dense attempts failed before inference because sentence-transformers
 that loader compatibility issue was fixed without changing model weights. Their
 protocols are marked failed, not silently removed. Dense/hybrid/reranker and reader
 runs remain pending until complete artifacts exist.
+
+### Wiring audit before downstream use
+
+The earlier unbenchmarked verification scaffold did not pass the candidate JSON
+to the prompted verifier, and wrapped its parse result as if it were always
+strict JSON. Fixed both in `scripts/run_verification_experiment.py` and added a
+regression test with an intentionally malformed verifier response. The new corpus
+benchmark uses the separate frozen static reader, so its rankings and BM25
+results are unaffected. The older deterministic checker remains heuristic; this
+fix does not make it an independent, calibrated, or semantic relation verifier.
+
+Full suite before that new regression test: 28 passed. The added wiring test and
+10 corpus tests also pass. Exact new GPU runtime and checkpoint revisions will
+be captured in each Renku protocol, rather than assuming the old environment.
+
+### Renku pooled-corpus retrieval completed (100 frozen IDs)
+
+All eight arms completed on the same 66,635-document / 81,276-chunk dev-context
+pool. Artifacts were pushed to DCU GitLab `v-2` in commit `c35c30c` under
+`research_results/2026-09-30/evidence_20260930_renku_retrieval/`.
+
+| Arm | Sentence R@5 | Complete support@5 | Sentence R@10 | Complete support@10 |
+|---|---:|---:|---:|---:|
+| BM25 | .7110 | .45 | .8100 | .64 |
+| Dense MiniLM | .6415 | .36 | .7398 | .52 |
+| Hybrid RRF | .7442 | .52 | .8333 | .69 |
+| Hybrid + cross encoder | .8160 | .63 | .8800 | .77 |
+| Contextual BM25 | .7535 | .52 | .8508 | .70 |
+| Contextual dense | .6315 | .33 | .7232 | .49 |
+| Contextual hybrid | .7608 | .53 | .8483 | .70 |
+| Contextual hybrid + cross encoder | .8143 | .62 | .8742 | .74 |
+
+Plain reranked minus BM25 sentence R@5 = +.1050, paired bootstrap 95% interval
+[+.0567, +.1550]. Complete-support difference = +.18, interval [+.08,+.28]:
+23 rescued / 5 regressed. Hybrid alone has an interval crossing zero for R@5
+[-.0155,+.0825]. Dense alone is weaker on this cohort. Context prefixes help
+lexical retrieval but do not improve the reranked arm. This is evidence for
+reranking this candidate pool, not evidence of novel or market-leading RAG.
+
+Frozen embedding revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`;
+reranker revision `233902d25c440f23af6f7d6e94d2946bac0bee0a`.
+MiniLM's 256-token limit truncated 23 plain and 669 contextual index inputs
+out of 81,276; the 512-token reranker limit affected zero plain / one contextual
+query-passage pair. Reader evidence still uses the original complete sentences.
+This overflow difference is a limitation, not a proven explanation of the dense
+regression. Runtime: torch 2.14.1, numpy 2.5.0, sentence-transformers 6.1.0,
+transformers 5.12.1 on Renku's H200 NVL MIG 3g.71gb allocation.
+
+Qwen2.5-14B reader/critic calls and the official fullwiki index are still running
+at this entry. Do not treat the table above as fullwiki or answer EM/F1 results.
+The reader analyzer preserves compressed raw calls and separates critic cost
+from reader cost, paired answer gains/regressions, parser failures, and coverage
+strata. Critic agreement with gold-support coverage is not human sufficiency
+accuracy. Full local suite after the analyzer and verifier regressions: 31 passed.
